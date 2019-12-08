@@ -141,10 +141,10 @@ struct Window
 	Rune			*r;
 	uint			nraw;
 	Rune			*raw;
-	uint			org;
-	uint			q0;
-	uint			q1;
-	uint			qh;
+	uint			org;    /* first visible char in window */
+	uint			q0;     /* cursor or start of selection */
+	uint			q1;     /* end of selection */
+	uint			qh;     /* start of line to be sent to reader of cons file */
 	int			id;
 	char			name[32];
 	uint			namecount;
