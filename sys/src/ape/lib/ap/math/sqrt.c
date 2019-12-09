@@ -16,11 +16,13 @@ sqrt(double arg)
 	double x, temp;
 	int exp, i;
 
-	if(isInf(arg, 1))
+	if(isInf(arg, 1) || isNaN(arg))
 		return arg;
-	if(arg <= 0) {
-		if(arg < 0)
+	if(arg <= 0){
+		if(arg < 0){
 			errno = EDOM;
+			return NaN();
+		}
 		return 0;
 	}
 	x = frexp(arg, &exp);
