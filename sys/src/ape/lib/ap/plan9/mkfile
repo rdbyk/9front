@@ -85,7 +85,6 @@ OFILES=\
 	sigprocmask.$O\
 	sigsuspend.$O\
 	sleep.$O\
-	sqrt.$O\
 	stat.$O\
 	system.$O\
 	tcgetattr.$O\

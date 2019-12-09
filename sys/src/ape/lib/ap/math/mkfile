@@ -20,6 +20,7 @@ OFILES=\
 	pow.$O\
 	sin.$O\
 	sinh.$O\
+	sqrt.$O\
 	tan.$O\
 	tanh.$O\
 
