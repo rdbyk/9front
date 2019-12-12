@@ -406,7 +406,7 @@ winctl(void *arg)
 			t = "notcurrent";
 			if(w == input)
 				t = "current";
-			pair.ns = snprint(pair.s, pair.ns+1, "%11d %11d %11d %11d %11s %11s ",
+			pair.ns = snprint(pair.s, pair.ns, "%11d %11d %11d %11d %s %s ",
 				w->i->r.min.x, w->i->r.min.y, w->i->r.max.x, w->i->r.max.y, t, s);
 			send(crm.c2, &pair);
 			continue;
@@ -725,6 +725,14 @@ wkeyctl(Window *w, Rune r)
 			wsetselect(w, q0, q0);
 		}
 		return;
+	case '\n':	/* Enter: newline character */
+		/* Move cursor to end of output text before the insertion
+         * of '\n' as ordinary character (cf. below) takes place.
+         * Thus, the current (edit) line will *not* be split.
+         */
+		if (w->q0 >= w->qh && w->q0 < w->nr)
+			wsetselect(w, w->nr, w->nr);
+		break;
 	}
 	/* otherwise ordinary character; just insert */
 	q0 = w->q0;
