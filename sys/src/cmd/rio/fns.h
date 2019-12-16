@@ -33,3 +33,10 @@ int	inborder(Rectangle, Point);
 #define	runemalloc(n)		malloc((n)*sizeof(Rune))
 #define	runerealloc(a, n)	realloc(a, (n)*sizeof(Rune))
 #define	runemove(a, b, n)	memmove(a, b, (n)*sizeof(Rune))
+
+#define histentry(w,pos)	((w)->history.line[((w)->history.first+pos)%MAXHISTLINES])
+#define	histreset(w)		((w)->history.pos=(w)->history.size)
+void	histinit(Window*);
+void	histfree(Window*);
+void	histadd(Window*, int, int);
+void	histinsert(Window*, int);

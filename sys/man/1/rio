@@ -393,6 +393,9 @@ An ACK character (control-F) or Insert character triggers file name completion
 for the preceding string (see
 .IR complete (2)).
 .PP
+Typing shift-up- or shift-down-arrow retrieves a previously typed text line from
+the history buffer, which replaces the current (edit) line.
+.PP
 Typing a left or right arrow moves the cursor one character in that direction.
 Typing an SOH character (control-A) moves the cursor to the beginning of the
 current line; an ENQ character (control-E) moves to the end. The STX character
@@ -549,4 +552,8 @@ In some cases,
 can be used to work around this limitation.
 .SH HISTORY
 .SS December, 2019
+.IP \(bu 2
 Typing the enter key in a \fIrio\fR text window will not split the current (edit) line any more.
+.IP \(bu 2
+Typing shift-up- or shift-down-arrow provides access to a newly implemented history buffer.
+

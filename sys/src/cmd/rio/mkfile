@@ -12,6 +12,7 @@ OFILES=\
 	wctl.$O\
 	wind.$O\
 	xfid.$O\
+	hist.$O\
 
 HFILES=dat.h\
 	fns.h\
