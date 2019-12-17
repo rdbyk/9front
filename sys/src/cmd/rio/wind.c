@@ -518,6 +518,8 @@ showcandidates(Window *w, Completion *c)
 		winsert(w, rp, nr, qline);
 	}
 	free(rp);
+	wshow(w, w->q0);
+	wscrdraw(w);
 }
 
 typedef struct Completejob Completejob;
@@ -662,7 +664,7 @@ wkeyctl(Window *w, Rune r)
 			}
 			return;
 		case Khome:
-			wshow(w, 0);
+			wsetorigin(w, 0, TRUE);
 			return;
 		case Kend:
 			wshow(w, w->nr);
@@ -747,6 +749,7 @@ wkeyctl(Window *w, Rune r)
 		if(nb > 0){
 			wdelete(w, q0, q0+nb);
 			wsetselect(w, q0, q0);
+			wscrdraw(w);
 		}
 		return;
 	case '\n':	/* Enter: newline character */
@@ -762,6 +765,7 @@ wkeyctl(Window *w, Rune r)
 	q0 = w->q0;
 	q0 = winsert(w, &r, 1, q0);
 	wshow(w, q0+1);
+	wscrdraw(w);
 }
 
 void
@@ -1594,7 +1598,7 @@ wclickmatch(Window *w, int cl, int cr, int dir, uint *q)
 uint
 wbacknl(Window *w, uint p, uint n)
 {
-	int i, j;
+	int i;
 
 	/* look for start of this line if n==0 */
 	if(n==0 && p>0 && w->r[p-1]!='\n')
@@ -1605,32 +1609,70 @@ wbacknl(Window *w, uint p, uint n)
 		if(p == 0)
 			break;
 		/* at 128 chars, call it a line anyway */
-		for(j=128; --j>0 && p>0; p--)
+		for(; p>0; p--)
 			if(w->r[p-1]=='\n')
 				break;
 	}
 	return p;
 }
 
+/*
+ * Return the character position after the end of the first visible
+ * line in the window. (cf. /lib/legal/mit.objecticon)
+ */
+static uint
+nextline(Window *w)
+{
+    uint res;
+    int i, x;
+    Frbox *b;
+    Frame *fr;
+
+    fr = w;
+    res = w->org;        /* Start at the current origin */
+    x = fr->r.min.x;
+
+    for (i = 0; i < fr->nbox; ++i) {
+        b = &fr->box[i];
+        /* If break box, count the break char and exit. */
+        if (b->nrune < 0) {
+            ++res;
+            break;
+        }
+        /* Count the pixels to check if this box is on the next line.
+         * If so, exit. */
+        x += b->wid;
+        if (x > fr->r.max.x)
+            break;
+
+        /* Otherwise, count its chars and continue. */
+        res += b->nrune;
+    }
+    return res;
+}
+
+/*
+ * Move origin so that q0 is on the screen
+ * (cf. /lib/legal/mit.objecticon)
+ */
 void
 wshow(Window *w, uint q0)
 {
-	int qe;
-	int nl;
-	uint q;
-
-	qe = w->org+w->nchars;
-	if(w->org<=q0 && (q0<qe || (q0==qe && qe==w->nr)))
-		wscrdraw(w);
-	else{
-		nl = 4*w->maxlines/5;
-		q = wbacknl(w, q0, nl);
-		/* avoid going backwards if trying to go forwards - long lines! */
-		if(!(q0>w->org && q<w->org))
-			wsetorigin(w, q, TRUE);
-		while(q0 > w->org+w->nchars)
-			wsetorigin(w, w->org+1, FALSE);
-	}
+    if (q0 < w->org)
+        wsetorigin(w, wbacknl(w, q0, 0), TRUE);
+    else {
+        /* A slightly more complicated loop is needed in the case of
+         * newline. */
+        if (q0 > 0 && w->r[q0 - 1] == '\n') {
+            while(q0 >= w->org + w->nchars &&
+                  w->org < w->nr &&            /* org can increase */
+                  w->nlines == w->maxlines)    /* and no empty space on-screen already */
+                wsetorigin(w, nextline(w), TRUE);
+        } else {
+            while(q0 > w->org + w->nchars)
+                wsetorigin(w, nextline(w), TRUE);
+        }
+    }
 }
 
 void

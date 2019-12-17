@@ -123,6 +123,7 @@ histinsert(Window *w, int pos)
 	winsert(w, line, runestrlen(line), w->nr);
 	wsetselect(w, w->nr, w->nr);
 	wshow(w, w->nr);
+	wscrdraw(w);
 
 	/* new position */
 	h->pos = pos;
