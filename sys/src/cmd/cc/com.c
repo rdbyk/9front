@@ -10,6 +10,7 @@ struct Com
 int compar(Node*, int);
 static void comma(Node*);
 static Node*	commas(Com*, Node*);
+static double togglesign(double);
 
 void
 complex(Node *n)
@@ -1222,7 +1223,8 @@ loop:
 		if(r->op == OCONST) {
 			if(typefd[r->type->etype]) {
 				n->op = OADD;
-				r->fconst = -r->fconst;
+				/* r->fconst = -r->fconst; */
+				r->fconst = togglesign(r->fconst);
 				goto loop;
 			} else {
 				n->op = OADD;
@@ -1507,3 +1509,12 @@ if(debug['y']) prtree(n, "strange");
 	warn(n, "useless or misleading comparison: %s", cmpbuf);
 	return 0;
 }
+
+static double
+togglesign(double d)
+{
+	FPdbleword dw;
+	dw.x = d;
+	dw.hi ^= 0x80000000L;
+	return dw.x;
+};

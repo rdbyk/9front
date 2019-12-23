@@ -180,8 +180,10 @@ ieeedtod(Ieee *ieee, double native)
 		return;
 	}
 	if(native == 0) {
+		FPdbleword n;
+		n.x = native;
 		ieee->l = 0;
-		ieee->h = 0;
+		ieee->h = n.hi; /* copy sign */
 		return;
 	}
 	fr = frexp(native, &exp);

@@ -611,11 +611,15 @@ gmove(Node *f, Node *t)
 	if(typefd[ft] && f->op == OCONST) {
 		/* TO DO: pick up special constants, possibly preloaded */
 		if(f->fconst == 0.0){
-			regalloc(&nod, t, t);
-			gins(AXORPD, &nod, &nod);
-			gmove(&nod, t);
-			regfree(&nod);
-			return;
+			FPdbleword fw;
+			fw.x = f->fconst;
+			if(fw.hi == 0) {				/* +0.0 ? */
+				regalloc(&nod, t, t);
+				gins(AXORPD, &nod, &nod);
+				gmove(&nod, t);
+				regfree(&nod);
+				return;
+			}
 		}
 	}
 /*
