@@ -75,6 +75,7 @@ CFILES=\
 	runestrlen.c\
 	runestrstr.c\
 	runetype.c\
+	signbit.c\
 	sin.c\
 	sinh.c\
 	sqrt.c\

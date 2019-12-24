@@ -307,6 +307,9 @@ extern	double	tanh(double);
 extern	double	sqrt(double);
 extern	double	fmod(double, double);
 
+extern	int		signbit(double);
+extern	double	copysign(double, double);
+
 #define	HUGE	3.4028234e38
 #define	PIO2	1.570796326794896619231e0
 #define	PI	(PIO2+PIO2)

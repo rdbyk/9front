@@ -1,0 +1,32 @@
+.TH SIGNBIT 2
+.SH NAME
+signbit, copysign  \- sign of floating point
+.SH SYNOPSIS
+.B #include <u.h>
+.br
+.B #include <libc.h>
+.PP
+.nf
+.B
+int signbit(double x)
+.PP
+.B
+double copysign(double x, double y)
+.SH DESCRIPTION
+.I Signbit
+returns true if the value of
+.IR x
+has its sign bit set, otherwise it returns false.
+.PP
+.I Copysign
+returns a value whose magnitude is taken from
+.IR x
+and whose sign is taken from
+.IR y .
+.SH SOURCE
+.BR /sys/src/libc/port/signbit.c
+.SH HISTORY
+.I Signbit
+and
+.I copysign
+appeared in December, 2019.
