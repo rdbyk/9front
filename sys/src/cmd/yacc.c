@@ -142,7 +142,6 @@ Biobuf*	foutput;	/* y.output file */
 
 	/* communication variables between various I/O routines */
 
-char*	infile;			/* input file name */
 char*	inpath;			/* input full path */
 int	numbval;		/* value of an input number */
 char	tokname[NAMESIZE+UTFmax+1];	/* input token name, slop for runes and 0 */
@@ -624,7 +623,7 @@ error(char *s, ...)
 
 	nerrors++;
 	va_start(ap, s);
-	fprint(2, "%s:%d: fatal error: ", infile, lineno);
+	fprint(2, "%s:%d: fatal error: ", inpath, lineno);
 	vfprint(2, s, ap);
 	fprint(2, "\n");
 	va_end(ap);
@@ -1230,12 +1229,12 @@ setup(int argc, char *argv[])
 	Blethal(faction, nil);
 	if(argc < 1)
 		error("no input file");
-	infile = argv[0];
-	if(infile[0] != '/' && getwd(dirbuf, sizeof dirbuf)!=nil){
-		i = strlen(infile)+1+strlen(dirbuf)+1+10;
+	inpath = argv[0];
+	if(inpath[0] != '/' && getwd(dirbuf, sizeof dirbuf)!=nil){
+		i = strlen(inpath)+1+strlen(dirbuf)+1+10;
 		s = malloc(i);
 		if(s != nil){
-			snprint(s, i, "%s/%s", dirbuf, infile);
+			snprint(s, i, "%s/%s", dirbuf, inpath);
 			cleanname(s);
 			inpath = s;
 		}
