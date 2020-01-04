@@ -47,8 +47,9 @@ histremove(Window *w)
  * Add new (last) history entry
  *
  * Rune sequence (from..to) is handled, just before it is sent to the
- * cons reader. If the sequence is ending with  '\n' or '^d', then a
- * new history entry is created, otherwise the sequence is buffered.
+ * cons reader. If the sequence is ending with  '\n' or '^d', is a non
+ * empty line and is different from the last created history entry, then
+ * a new history entry is created, otherwise the sequence is buffered.
  */
 void
 histadd(Window *w, int from, int to)
@@ -68,11 +69,14 @@ histadd(Window *w, int from, int to)
 				Rune *line = emalloc(h->buflen * sizeof(Rune));
 				memcpy(line, h->buf, (h->buflen - 1) * sizeof(Rune));
 				line[h->buflen - 1] = '\0';
-				if(h->size == MAXHISTLINES) /* history full? */
-					histremove(w);
-				h->line[h->last] = line;
-				h->last = (h->last + 1) % MAXHISTLINES;
-				h->size++;
+				if(h->size == 0 || runestrcmp(line, h->line[h->last-1])){
+					if(h->size == MAXHISTLINES) /* history full? */
+						histremove(w);
+					h->line[h->last] = line;
+					h->last = (h->last + 1) % MAXHISTLINES;
+					h->size++;
+				}else
+					free(line);
 			}
 		}
 		h->buflen = 0;
