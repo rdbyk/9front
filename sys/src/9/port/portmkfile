@@ -30,7 +30,7 @@ all:V:
 		mk 'CONF='$i
 
 clean:V:
-	rm -f *.[$OS] *.i *.root.s *.rootc.c cfs.h fs.h init.h conf.h *.out *.m errstr.h boot bootfs.paq
+	rm -f *.[$OS] *.i *.root.s *.rootc.c cfs.h fs.h conf.h *.out *.m errstr.h init.h reboot.h boot bootfs.paq
 	for(i in $CONFLIST $CRAPLIST)
 		mk $i.clean
 
@@ -42,13 +42,13 @@ nuke:V:	clean
 
 %.$O:	/$objtype/include/u.h ../port/lib.h mem.h dat.h fns.h io.h ../port/error.h ../port/portdat.h ../port/portfns.h
 
-../port/systab.h:	/sys/src/libc/9syscall/sys.h ../port/mksystab
+../port/systab.h:D:	/sys/src/libc/9syscall/sys.h ../port/mksystab
 	rc ../port/mksystab > ../port/systab.h
 
-$CONF.$O:	$CONF.c
+$CONF.$O:	$CONF.c $OBJ $LIB
 	$CC $CFLAGS '-DKERNDATE='`{date -n} $CONF.c
 
-$CONF.c:	../port/mkdevc $CONF
+$CONF.c:D:	../port/mkdevc $CONF
 	rc ../port/mkdevc $CONF > $CONF.c
 	{echo 'uchar configfile[]={'
 	 xd -1x $CONF |
@@ -56,10 +56,16 @@ $CONF.c:	../port/mkdevc $CONF
 	 echo 0,
 	 echo '};'} >> $CONF.c
 
-errstr.h:	../port/mkerrstr ../port/error.h
+errstr.h:D:	../port/mkerrstr ../port/error.h
 	rc ../port/mkerrstr > errstr.h
 
-%.db:		main.$O
+%.i:D:	%.out
+	{echo 'uchar '^$stem^'[]={'
+	 xd -1x <$stem.out |
+		sed -e 's/^[0-9a-f]+ //' -e 's/ ([0-9a-f][0-9a-f])/0x\1,/g'
+	 echo '};'} > $target
+
+%.db:D:	main.c
 	$CC -s$stem main.c | dbfmt > $stem.db
 
 alloc.$O ucalloc.$O devswap.$O devproc.$O:	/sys/include/pool.h
@@ -74,7 +80,7 @@ sdscsi.$O:	../port/sd.h /$objtype/include/ureg.h
 sdaoe.$O:	../port/sd.h /$objtype/include/ureg.h
 trap.$O:	/$objtype/include/ureg.h
 devproc.$O:	/$objtype/include/ureg.h
-main.$O:	init.h
+userinit.$O:	initcode.i
 trap.$O:	../port/systab.h
 devpipe.$O:	../port/netif.h
 netif.$O:	../port/netif.h
