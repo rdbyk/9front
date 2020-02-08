@@ -104,6 +104,9 @@ modf(double d, double *ip)
 			x.x = modf(-d, ip);
 			*ip = -*ip;
 			return -x.x;
+		} else if (d == 0) {
+			*ip = d;
+			return d;
 		}
 		*ip = 0;
 		return d;
