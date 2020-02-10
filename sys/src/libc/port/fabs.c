@@ -4,8 +4,9 @@
 double
 fabs(double arg)
 {
+	FPdbleword a;
 
-	if(arg < 0)
-		return -arg;
-	return arg;
+	a.x = arg;
+	a.hi &= 0x7FFFFFFFL;
+	return a.x;
 }
