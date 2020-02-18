@@ -39,8 +39,8 @@ ldexp(double d, int deltae)
 	FPdbleword x;
 	ulong z;
 
-	if(d == 0)
-		return 0;
+	if(isNaN(d) || d == 0)
+		return d;
 	x.x = d;
 	e = (x.hi >> SHIFT) & MASK;
 	if(deltae >= 0 || e+deltae >= 1){	/* no underflow */
