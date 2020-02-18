@@ -1197,6 +1197,7 @@ void
 gopcode(int o, Type *ty, Node *f, Node *t)
 {
 	int a, et;
+	Prog *p1;
 
 	et = TLONG;
 	if(ty != T)
@@ -1423,6 +1424,26 @@ gopcode(int o, Type *ty, Node *f, Node *t)
 		case OHS:	a = AJCC; break;
 		case OHI:	a = AJHI; break;
 		}
+		if(typefd[et]) {	/* additional check of parity flag */
+			switch(o) {
+			case OEQ:
+			case ONE:
+			case OHS:
+			case OHI:
+				gins(AJPS, Z, Z);
+				p1 = p;
+				gins(a, Z, Z);
+				if(o == OEQ)
+					patch(p1, pc);
+				else
+					patch(p1, pc + 2);
+				return;
+
+			default:	goto nopfchk;
+			}
+			
+		}
+nopfchk:
 		gins(a, Z, Z);
 		return;
 	}
