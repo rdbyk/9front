@@ -1196,9 +1196,11 @@ gins(int a, Node *f, Node *t)
 void
 gopcode(int o, Type *ty, Node *f, Node *t)
 {
-	int a, et;
+	int a, et, true;
 	Prog *p1;
 
+	true = o & BTRUE;
+	o &= ~BTRUE;
 	et = TLONG;
 	if(ty != T)
 		et = ty->etype;
@@ -1427,23 +1429,32 @@ gopcode(int o, Type *ty, Node *f, Node *t)
 		if(typefd[et]) {	/* additional check of parity flag */
 			switch(o) {
 			case OEQ:
-			case ONE:
-			case OHS:
-			case OHI:
 				gins(AJPS, Z, Z);
 				p1 = p;
 				gins(a, Z, Z);
-				if(o == OEQ)
-					patch(p1, pc);
-				else
-					patch(p1, pc + 2);
+				patch(p1, pc);
 				return;
-
-			default:	goto nopfchk;
+			case OLO:
+			case OLS:
+				if(!true)
+					goto pfchk;
+				break;
+			case OHI:
+			case OHS:
+				if(true)
+					goto pfchk;
+				break;
+			case ONE:
+pfchk:
+				gins(a, Z, Z);
+				p1 = p;
+				gins(AJPS, Z, Z);
+				patch(p1, pc + 2);
+				return;
+			default:
+				break;
 			}
-			
 		}
-nopfchk:
 		gins(a, Z, Z);
 		return;
 	}
