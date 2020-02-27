@@ -1426,36 +1426,38 @@ gopcode(int o, Type *ty, Node *f, Node *t)
 		case OHS:	a = AJCC; break;
 		case OHI:	a = AJHI; break;
 		}
-		if(typefd[et]) {	/* additional check of parity flag */
+		if(typefd[et])				/* Take care of NaNs */
 			switch(o) {
-			case OEQ:
-				gins(AJPS, Z, Z);
-				p1 = p;
-				gins(a, Z, Z);
-				patch(p1, pc);
-				return;
-			case OLO:
-			case OLS:
+			case OEQ:				/* (NaN != x) == 1; !(NaN == x) == 1 */
+				goto nantrue;
+			case ONE: 				/* (NaN == x) == 0; !(NaN != x) == 0 */
+				goto nanfalse;
+			case OLO: 				/* !(NaN > x) == 1 */
+			case OLS: 				/* !(NaN >= x) == 1 */
 				if(!true)
-					goto pfchk;
+					goto nantrue;
 				break;
-			case OHI:
-			case OHS:
+			case OHS:				/* (NaN > x) == 0 */
+			case OHI: 				/* (NaN >= x) == 0 */
 				if(true)
-					goto pfchk;
+					goto nanfalse;
 				break;
-			case ONE:
-pfchk:
-				gins(a, Z, Z);
-				p1 = p;
-				gins(AJPS, Z, Z);
-				patch(p1, pc + 2);
-				return;
 			default:
 				break;
 			}
-		}
 		gins(a, Z, Z);
+		return;
+nantrue:
+		gins(AJPS, Z, Z);
+		p1 = p;
+		gins(a, Z, Z);
+		patch(p1, pc);
+		return;
+nanfalse:
+		gins(AJPS, Z, Z);
+		p1 = p;
+		gins(a, Z, Z);
+		patch(p1, pc + 2);
 		return;
 	}
 	if(a == AGOK)
