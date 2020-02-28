@@ -36,10 +36,12 @@ not less than
 .PP
 .I Fmod
 returns
-.I x
+.I NaN
 if
 .I y
-is zero, otherwise the number
+is zero or
+.I x
+is an infinity, otherwise the number
 .I f
 with the same sign as
 .IR x ,

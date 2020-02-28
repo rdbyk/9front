@@ -10,8 +10,8 @@ fmod (double x, double y)
 	int sign, yexp, rexp;
 	double r, yfr, rfr;
 
-	if (y == 0)
-		return x;
+	if (isNaN(y) || x + y == x)		/* isNaN(y) || y==0 || isInf(x,0) */
+		return NaN();
 	if (y < 0)
 		y = -y;
 	yfr = frexp(y, &yexp);
