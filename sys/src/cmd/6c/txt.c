@@ -1197,7 +1197,7 @@ void
 gopcode(int o, Type *ty, Node *f, Node *t)
 {
 	int a, et, true;
-	Prog *p1;
+	Prog *p1, *p2;
 
 	true = o & BTRUE;
 	o &= ~BTRUE;
@@ -1431,6 +1431,7 @@ gopcode(int o, Type *ty, Node *f, Node *t)
 			case OEQ:				/* (NaN != x) == 1; !(NaN == x) == 1 */
 				goto nantrue;
 			case ONE: 				/* (NaN == x) == 0; !(NaN != x) == 0 */
+				a = AJEQ;
 				goto nanfalse;
 			case OLO: 				/* !(NaN > x) == 1 */
 			case OLS: 				/* !(NaN >= x) == 1 */
@@ -1438,9 +1439,16 @@ gopcode(int o, Type *ty, Node *f, Node *t)
 					goto nantrue;
 				break;
 			case OHS:				/* (NaN > x) == 0 */
-			case OHI: 				/* (NaN >= x) == 0 */
-				if(true)
+				if(true) {
+					a = AJCS;
 					goto nanfalse;
+				}
+				break;
+			case OHI: 				/* (NaN >= x) == 0 */
+				if(true) {
+					a = AJLS;
+					goto nanfalse;
+				}
 				break;
 			default:
 				break;
@@ -1457,7 +1465,10 @@ nanfalse:
 		gins(AJPS, Z, Z);
 		p1 = p;
 		gins(a, Z, Z);
-		patch(p1, pc + 2);
+		p2 = p;
+		patch(p1, pc);
+		gins(AJMP, Z, Z);
+		patch(p2, pc);
 		return;
 	}
 	if(a == AGOK)
