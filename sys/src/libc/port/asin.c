@@ -34,7 +34,5 @@ asin(double arg)
 double
 acos(double arg)
 {
-	if(arg > 1 || arg < -1)
-		return NaN();
 	return PIO2 - asin(arg);
 }
