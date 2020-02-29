@@ -72,7 +72,7 @@ double
 atan(double arg)
 {
 
-	if(arg > 0)
+	if(arg >= 0)
 		return satan(arg);
 	return -satan(-arg);
 }
