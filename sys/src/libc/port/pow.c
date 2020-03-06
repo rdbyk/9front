@@ -1,16 +1,6 @@
 #include <u.h>
 #include <libc.h>
 
-static int
-isodd(double v)
-{
-	double iv;
-
-	if(modf(v, &iv) != 0)
-		return 0;
-	return (vlong)iv & 1;
-}
-
 double
 pow(double x, double y) /* return x ^ y (exponentiation) */
 {
@@ -18,44 +8,10 @@ pow(double x, double y) /* return x ^ y (exponentiation) */
 	long i;
 	int ex, ey, flip;
 
-	/*
-	 * Special cases.
-	 * Checking early here prevents an infinite loop.
-	 * We need to test if !isNaN() here because otherwise
-	 * we trap.
-	 */
-	if(!isNaN(x) && x == 1.0)
-		return 1.0;
-	if(!isNaN(y) && y == 0.0)
-		return 1.0;
-	if(isNaN(x) || isNaN(y))
+	if(y == 0 || x == 1)
+		return 1;
+	if(isNaN(x+y))
 		return NaN();
-	if(isInf(x, 1)){
-		if(y < 0)
-			return 0.0;
-		else
-			return Inf(1);
-	}else if(isInf(x, -1)){
-		if(y < 0)
-			return isodd(y) ? -0.0 : 0.0;
-		else if(y > 0)
-			return isodd(y) ? Inf(-1) : Inf(1);
-	}
-	if(isInf(y, 1)){
-		if(x == -1.0)
-			return 1.0;
-		else if(fabs(x) < 1.0)
-			return 0.0;
-		else if(fabs(x) > 1.0)
-			return Inf(1);
-	}else if(isInf(y, -1)){
-		if(x == -1.0)
-			return 1.0;
-		else if(fabs(x) < 1.0)
-			return Inf(1);
-		else if(fabs(x) > 1.0)
-			return 0.0;
-	}
 
 	flip = 0;
 	if(y < 0.){
@@ -66,13 +22,33 @@ pow(double x, double y) /* return x ^ y (exponentiation) */
 	if(y1 != 0.0){
 		if(x <= 0.)
 			goto zreturn;
+		if(isInf(x,1)){
+			if(flip)
+				return +0.0;
+			return Inf(1);
+		}
 		if(y1 > 0.5) {
 			y1 -= 1.;
 			ye += 1.;
 		}
 		xy = exp(y1 * log(x));
-	}else
+	}else{
 		xy = 1.0;
+		if(isInf(y,1)){				/* modf(inf,*) == 0 */
+			if(x == -1)
+				return xy;
+			if(x > -1 && x < 1){	/* |x| < 1 */
+				if(flip)
+					return Inf(1);
+				return +0.0;
+			}
+			if(x != 1){				/* |x| > 1 */
+				if(flip)
+					return +0.0;
+				return Inf(1);
+			}			
+		}
+	}
 	if(ye > 0x7FFFFFFF){	/* should be ~0UL but compiler can't convert double to ulong */
 		if(x <= 0.){
  zreturn:
