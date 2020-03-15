@@ -810,8 +810,8 @@ srv(Srv *srv)
 	fmtinstall('F', fcallfmt);
 
 	srv->spid = getpid();
-	srv->sref.ref = 0;
-	srv->rref.ref = 0;
+	memset(&srv->sref, 0, sizeof(srv->sref));
+	memset(&srv->rref, 0, sizeof(srv->rref));
 
 	if(srv->fpool == nil)
 		srv->fpool = allocfidpool(srv->destroyfid);
@@ -917,60 +917,4 @@ responderror(Req *r)
 	
 	rerrstr(errbuf, sizeof errbuf);
 	respond(r, errbuf);
-}
-
-int
-postfd(char *name, int pfd)
-{
-	int fd;
-	char buf[80];
-
-	snprint(buf, sizeof buf, "/srv/%s", name);
-	if(chatty9p)
-		fprint(2, "postfd %s\n", buf);
-	fd = create(buf, OWRITE|ORCLOSE|OCEXEC, 0600);
-	if(fd < 0){
-		if(chatty9p)
-			fprint(2, "create fails: %r\n");
-		return -1;
-	}
-	if(fprint(fd, "%d", pfd) < 0){
-		if(chatty9p)
-			fprint(2, "write fails: %r\n");
-		close(fd);
-		return -1;
-	}
-	if(chatty9p)
-		fprint(2, "postfd successful\n");
-	return 0;
-}
-
-int
-sharefd(char *name, char *desc, int pfd)
-{
-	int fd;
-	char buf[80];
-
-	snprint(buf, sizeof buf, "#σc/%s", name);
-	if((fd = create(buf, OREAD, 0700|DMDIR)) >= 0)
-		close(fd);
-	snprint(buf, sizeof buf, "#σc/%s/%s", name, desc);
-	if(chatty9p)
-		fprint(2, "sharefd %s\n", buf);
-	fd = create(buf, OWRITE, 0600);
-	if(fd < 0){
-		if(chatty9p)
-			fprint(2, "create fails: %r\n");
-		return -1;
-	}
-	if(fprint(fd, "%d\n", pfd) < 0){
-		if(chatty9p)
-			fprint(2, "write fails: %r\n");
-		close(fd);
-		return -1;
-	}
-	close(fd);
-	if(chatty9p)
-		fprint(2, "sharefd successful\n");
-	return 0;
 }

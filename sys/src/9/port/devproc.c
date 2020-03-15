@@ -442,12 +442,12 @@ procopen(Chan *c, int omode0)
 			error(Eperm);
 		break;
 
+	case Qctl:
 	case Qargs:
 	case Qwait:
 	case Qnoteid:
 		if(omode == OREAD)
 			break;
-	case Qctl:
 	case Qnote:
 		if(p->kp)
 			error(Eperm);
@@ -941,6 +941,9 @@ procread(Chan *c, void *va, long n, vlong off)
 			}
 		}
 		error(Ebadarg);
+
+	case Qctl:
+		return readnum(offset, va, n, p->pid, NUMSIZE);
 
 	case Qnoteid:
 		return readnum(offset, va, n, p->noteid, NUMSIZE);

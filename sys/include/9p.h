@@ -215,9 +215,7 @@ struct Srv {
 
 	int		infd;
 	int		outfd;
-	int		nopipe;
 	int		srvfd;
-	int		leavefdsopen;	/* magic for acme win */
 	char*	keyspec;
 
 /* below is implementation-specific; don't use */
@@ -248,8 +246,6 @@ void		postsharesrv(Srv*, char*, char*, char*);
 void		_postsharesrv(Srv*, char*, char*, char*);
 void		listensrv(Srv*, char*);
 void		_listensrv(Srv*, char*);
-int 		postfd(char*, int);
-int		sharefd(char*, char*, int);
 int		chatty9p;
 void		respond(Req*, char*);
 void		responderror(Req*);
