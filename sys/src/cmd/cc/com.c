@@ -11,6 +11,7 @@ int compar(Node*, int);
 static void comma(Node*);
 static Node*	commas(Com*, Node*);
 static double togglesign(double);
+static double mulsign(double, double);
 
 void
 complex(Node *n)
@@ -1181,6 +1182,13 @@ loop:
 		ccom(l);
 		t = vconst(l);
 		if(t == 0 && !side(r)) {
+			ccom(r);
+			if(typefd[l->type->etype] && typefd[r->type->etype]) {
+				if(r->op == OCONST)
+					l->fconst = mulsign(l->fconst, r->fconst);
+				else
+					goto common;				/* generate "0*x" */
+			}
 			*n = *l;
 			break;
 		}
@@ -1191,6 +1199,12 @@ loop:
 		ccom(r);
 		t = vconst(r);
 		if(t == 0 && !side(l)) {
+			if(typefd[l->type->etype] && typefd[r->type->etype]) {
+				if(l->op == OCONST)
+					r->fconst = mulsign(r->fconst, l->fconst);
+				else
+					goto common;				/* generate "x*0" */
+			}
 			*n = *r;
 			break;
 		}
@@ -1204,13 +1218,23 @@ loop:
 	case OLDIV:
 		ccom(l);
 		if(vconst(l) == 0 && !side(r)) {
+			ccom(r);
+			if(typefd[l->type->etype] && typefd[r->type->etype]) {
+				if(r->op == OCONST && r->fconst != 0)
+					l->fconst = mulsign(l->fconst, r->fconst);
+				else
+					goto common;				/* generate NaN "0/0" */
+			}
 			*n = *l;
 			break;
 		}
 		ccom(r);
 		t = vconst(r);
 		if(t == 0) {
-			diag(n, "divide check");
+			if(typefd[l->type->etype] && typefd[r->type->etype])
+				goto common;					/* generate Inf "x/0" (warning) */
+			else
+				diag(n, "divide check");		/* only for integers */
 			*n = *r;
 			break;
 		}
@@ -1519,4 +1543,14 @@ togglesign(double d)
 	dw.x = d;
 	dw.hi ^= 0x80000000L;
 	return dw.x;
+};
+
+static double
+mulsign(double x, double y)
+{
+	FPdbleword xw, yw;
+	xw.x = x;
+	yw.x = y;
+	xw.hi ^= yw.hi & 0x80000000L;
+	return xw.x;
 };
