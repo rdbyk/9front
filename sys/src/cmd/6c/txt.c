@@ -608,19 +608,34 @@ gmove(Node *f, Node *t)
 	if(debug['M'])
 		print("gop: %O %O[%s],%O[%s]\n", OAS,
 			f->op, tnames[ft], t->op, tnames[tt]);
-	if(typefd[ft] && f->op == OCONST) {
+	if(f->op == OCONST) {
 		/* TO DO: pick up special constants, possibly preloaded */
-		if(f->fconst == 0.0){
-			FPdbleword fw;
-			fw.x = f->fconst;
-			if(fw.hi == 0) {				/* +0.0 ? */
+		if(typefd[ft]){
+			if(f->fconst == 0.0) {
+				FPdbleword fw;
+				fw.x = f->fconst;
+				if(fw.hi == 0) {			/* +0.0 */
+					regalloc(&nod, t, t);
+					gins(AXORPD, &nod, &nod);
+					gmove(&nod, t);
+					regfree(&nod);
+					return;
+				}
+			}
+		}else
+			switch(vconst(f)){
+			case 0:
 				regalloc(&nod, t, t);
-				gins(AXORPD, &nod, &nod);
+				if(t64)
+					gins(AXORQ, &nod, &nod);
+				else
+					gins(AXORL, &nod, &nod);
 				gmove(&nod, t);
 				regfree(&nod);
 				return;
+			default:
+				break;
 			}
-		}
 	}
 /*
  * load
