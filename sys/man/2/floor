@@ -55,6 +55,8 @@ and
 .RI | \|y\| |.
 .SH SOURCE
 .B /sys/src/libc/port
+.br
+.B /sys/src/libc/$objtype
 .SH SEE ALSO
 .IR abs (2),
 .IR frexp (2)

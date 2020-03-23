@@ -6,6 +6,7 @@ SFILES=\
 	argv0.s\
 	atom.s\
 	cycles.s\
+	fabs.s\
 	getfcr.s\
 	main9.s\
 	main9p.s\
