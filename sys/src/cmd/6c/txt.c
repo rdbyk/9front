@@ -1213,6 +1213,7 @@ gopcode(int o, Type *ty, Node *f, Node *t)
 {
 	int a, et, true;
 	Prog *p1, *p2;
+	Node nod;
 
 	true = o & BTRUE;
 	o &= ~BTRUE;
@@ -1249,6 +1250,17 @@ gopcode(int o, Type *ty, Node *f, Node *t)
 			a = ANEGW;
 		if(et == TVLONG || et == TUVLONG || et == TIND)
 			a = ANEGQ;
+		if(typefd[et]){
+			regalloc(&nod, t, Z);
+			gins(APCMPEQW, &nod, &nod);
+			if(et == TFLOAT)
+				gins(APSLLL, nodconst(31), &nod);
+			if(et == TDOUBLE)
+				gins(APSLLQ, nodconst(63), &nod);
+			gins(AXORPD, &nod, t);
+			regfree(&nod);
+			return;
+		}
 		break;
 
 	case OADDR:
