@@ -1,5 +1,7 @@
 #include "cc.h"
 
+static double togglesign(double);
+
 static Node*
 acast(Type *t, Node *n)
 {
@@ -39,7 +41,7 @@ evconst(Node *n)
 
 	case ONEG:
 		if(isf)
-			d = -l->fconst;
+			d = togglesign(l->fconst);
 		else
 			v = -l->vconst;
 		break;
@@ -603,4 +605,13 @@ addo(Node *n)
 			return 1;
 	}
 	return 0;
+}
+
+static double
+togglesign(double d)
+{
+	FPdbleword dw;
+	dw.x = d;
+	dw.hi ^= 0x80000000L;
+	return dw.x;
 }
