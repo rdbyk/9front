@@ -43,6 +43,8 @@ strtod(const char *cp, char **endptr)
 	if(dig+predig == 0){
 		if(endptr)
 			*endptr = (char *)cp;
+		if(neg)
+			return -0.0;
 		return 0.0;
 	}
 	if(c == 'e' || c == 'E'){
