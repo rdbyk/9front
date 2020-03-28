@@ -1,6 +1,7 @@
 #include "gc.h"
 
 static	int	resvreg[nelem(reg)];
+static double togglesign(double d);
 
 void
 ginit(void)
@@ -1252,11 +1253,7 @@ gopcode(int o, Type *ty, Node *f, Node *t)
 			a = ANEGQ;
 		if(typefd[et]){
 			regalloc(&nod, t, Z);
-			gins(APCMPEQW, &nod, &nod);
-			if(et == TFLOAT)
-				gins(APSLLL, nodconst(31), &nod);
-			if(et == TDOUBLE)
-				gins(APSLLQ, nodconst(63), &nod);
+			gmove(nodfconst(togglesign(0.0)), &nod);
 			gins(AXORPD, &nod, t);
 			regfree(&nod);
 			return;
@@ -1629,3 +1626,12 @@ long	ncast[NTYPE] =
 	BUNION,				/*[TUNION]*/
 	0,				/*[TENUM]*/
 };
+
+static double
+togglesign(double d)
+{
+	FPdbleword dw;
+	dw.x = d;
+	dw.hi ^= 0x80000000L;
+	return dw.x;
+}
