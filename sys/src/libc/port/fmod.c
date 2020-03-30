@@ -1,9 +1,6 @@
 #include <u.h>
 #include <libc.h>
 
-/*
- * floating-point mod function without infinity or NaN checking
- */
 double
 fmod (double x, double y)
 {
