@@ -16,10 +16,9 @@ frexp(double d, int *ep)
 {
 	FPdbleword x, a;
 
-	*ep = 0;
-	/* order matters: only isNaN can operate on NaN */
-	if(isNaN(d) || isInf(d, 0) || d == 0)
+	if(isNaN(d) || d + d == d)			/* isNaN(d) || isInf(d, 0) || d == 0 */
 		return d;
+	*ep = 0;
 	x.x = d;
 	a.x = fabs(d);
 	if((a.hi >> SHIFT) == 0){	/* normalize subnormal numbers */
