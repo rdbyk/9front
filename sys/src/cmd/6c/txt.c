@@ -1,7 +1,6 @@
 #include "gc.h"
 
 static	int	resvreg[nelem(reg)];
-static double togglesign(double d);
 
 void
 ginit(void)
@@ -1215,7 +1214,6 @@ gopcode(int o, Type *ty, Node *f, Node *t)
 	int a, et, true;
 	Prog *p1, *p2;
 	Node nod;
-	Node* szero;
 
 	true = o & BTRUE;
 	o &= ~BTRUE;
@@ -1254,16 +1252,16 @@ gopcode(int o, Type *ty, Node *f, Node *t)
 			a = ANEGQ;
 		if(typefd[et]){
 			regalloc(&nod, t, Z);
-			/* 
-			 * this is a clumsy method for telling "gmove" it's not
-			 * a "double" it's just a "float" ... and don't forget
-			 * to reset to default "double" type ... 
-			 */
-			szero = nodfconst(togglesign(0.0));
-			szero->type = types[et];					/* "double" or "float" */
-			gmove(szero, &nod);
-			szero->type = types[TDOUBLE];				/* don't forget (cf. above) */
-			gins(AXORPD, &nod, t);
+			/* fixme: do not generate but load "-0.0" constant? how? */
+			gins(APCMPEQW, &nod, &nod);
+			if(et == TFLOAT) {
+				gins(APSLLL, nodconst(31), &nod);
+				gins(AXORPS, &nod, t);
+			}
+			if(et == TDOUBLE) {
+				gins(APSLLQ, nodconst(63), &nod);
+				gins(AXORPD, &nod, t);
+			}
 			regfree(&nod);
 			return;
 		}
@@ -1635,12 +1633,3 @@ long	ncast[NTYPE] =
 	BUNION,				/*[TUNION]*/
 	0,				/*[TENUM]*/
 };
-
-static double
-togglesign(double d)
-{
-	FPdbleword dw;
-	dw.x = d;
-	dw.hi ^= 0x80000000L;
-	return dw.x;
-}
