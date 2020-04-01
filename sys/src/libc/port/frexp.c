@@ -16,7 +16,7 @@ frexp(double d, int *ep)
 {
 	FPdbleword x, a;
 
-	if(isNaN(d) || d + d == d)			/* isNaN(d) || isInf(d, 0) || d == 0 */
+	if(isNaN(d) || isInf(d, 0) || d == 0)
 		return d;
 	*ep = 0;
 	x.x = d;
