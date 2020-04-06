@@ -60,9 +60,7 @@ tan(double arg)
 	if(flag == 1) {
 		if(temp == 0) {
 			errno = EDOM;
-			if (sign > 0)
-				return HUGE_VAL;
-			return -HUGE_VAL;
+			return sign ? HUGE_VAL : -HUGE_VAL;
 		}
 		temp = 1/temp;
 	}
