@@ -38,6 +38,8 @@ extern int isNaN(double);
 extern double Inf(int);
 extern int isInf(double, int);
 extern double fmin(double, double);
+extern int signbit(double);
+extern double copysign(double, double);
 
 #ifdef _RESEARCH_SOURCE
 /* does >> treat left operand as unsigned ? */
