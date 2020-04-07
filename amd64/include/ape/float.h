@@ -39,8 +39,8 @@ union FPdbleword
 {
 	double	x;
 	struct {	/* little endian */
-		long lo;
-		long hi;
+		unsigned int lo;
+		unsigned int hi;
 	};
 };
 
