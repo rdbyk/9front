@@ -12,12 +12,11 @@
 	coefficients are #5077 from Hart & Cheney. (19.56D)
 */
 
+#define _RESEARCH_SOURCE /* fixme: should be dumped into bit bucket */
 #include <math.h>
 
 #define sq2p1 2.414213562373095048802e0
 #define sq2m1  .414213562373095048802e0
-#define pio2 1.570796326794896619231e0
-#define pio4  .785398163397448309615e0
 #define p4  .161536412982230228262e2
 #define p3  .26842548195503973794141e3
 #define p2  .11530293515404850115428136e4
@@ -32,7 +31,7 @@
 
 /*
 	xatan evaluates a series valid in the
-	range [-0.414...,+0.414...].
+	range [-0.414...,+0.414...]. (tan(pi/8))
  */
 
 static
@@ -42,14 +41,14 @@ xatan(double arg)
 	double argsq, value;
 
 	/* get denormalized add in following if range arg**10 is much smaller
-	    than q1, so check for that case
-	*/
-	if(-.01 < arg && arg < .01)
-		value = p0/q0;
-	else {
+	 * than q1, so check for that case
+	 */	
+	if(arg > 0.01 || arg < -0.01) {
 		argsq = arg*arg;
 		value = ((((p4*argsq + p3)*argsq + p2)*argsq + p1)*argsq + p0);
 		value = value/(((((argsq + q4)*argsq + q3)*argsq + q2)*argsq + q1)*argsq + q0);
+	} else {
+		value = p0/q0;
 	}
 	return value*arg;
 }
@@ -67,8 +66,8 @@ satan(double arg)
 	if(arg < sq2m1)
 		return xatan(arg);
 	if(arg > sq2p1)
-		return pio2 - xatan(1.0/arg);
-	return pio4 + xatan((arg-1.0)/(arg+1.0));
+		return M_PI_2 - xatan(1/arg);
+	return M_PI_4 + xatan((arg-1)/(arg+1));
 }
 
 /*
@@ -80,7 +79,7 @@ double
 atan(double arg)
 {
 
-	if(arg > 0)
+	if(arg >= 0)
 		return satan(arg);
 	return -satan(-arg);
 }
