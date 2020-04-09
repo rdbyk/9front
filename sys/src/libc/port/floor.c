@@ -23,7 +23,5 @@ floor(double d)
 double
 ceil(double d)
 {
-	if (d == 0)
-		return d;
 	return -floor(-d);
 }
