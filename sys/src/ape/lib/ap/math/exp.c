@@ -26,13 +26,13 @@ exp(double arg)
 
 	if(arg == 0)
 		return 1;
-	if(arg < -maxf) {
+	if(arg < -maxf){
 		errno = ERANGE;
 		return 0;
 	}
-	if(arg > maxf) {
+	if(arg > maxf){
 		errno = ERANGE;
-		return HUGE_VAL;
+		return Inf(1);
 	}
 	arg *= log2e;
 	ent = floor(arg);
