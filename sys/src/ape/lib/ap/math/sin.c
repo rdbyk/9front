@@ -5,9 +5,10 @@
 	Coefficients are #3370 from Hart & Cheney (18.80D).
 */
 
+#define _RESEARCH_SOURCE /* fixme: get rid of it */
 #include <math.h>
+#include <errno.h>
 
-#define	PIO2	1.570796326794896619231e0
 #define p0      .1357884097877375669092680e8
 #define p1     -.4942908100902844161158627e7
 #define p2      .4401030535375266501944918e6
@@ -30,8 +31,12 @@ sinus(double arg, int quad)
 		x = -x;
 		quad += 2;
 	}
-	x *= 1/PIO2;	/* underflow? */
+	x *= M_2_PI;	/* underflow? */
 	if(x > 32764) {
+		if(isInf(x, 0)){
+			errno = EDOM;
+			return NaN();
+		}
 		y = modf(x, &e);
 		e += quad;
 		modf(0.25*e, &f);
