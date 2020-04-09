@@ -16,7 +16,10 @@
 #define	q2  .1749287689093076403844945335e4
 #define	log2e  1.4426950408889634073599247
 #define	sqrt2  1.4142135623730950488016887
-#define	maxf  10000
+
+#define	maxf   709.782712893383973			/* arg > maxf  -> overflow */
+#define minf  -708.396418532264079			/* arg < minf  -> (gradual) underflow */
+#define minf2 -1000							/* arg < minf2 -> return zero */
 
 double
 exp(double arg)
@@ -26,9 +29,10 @@ exp(double arg)
 
 	if(arg == 0)
 		return 1;
-	if(arg < -maxf){
+	if(arg < minf){
 		errno = ERANGE;
-		return 0;
+		if(arg < minf2)
+			return 0;
 	}
 	if(arg > maxf){
 		errno = ERANGE;
