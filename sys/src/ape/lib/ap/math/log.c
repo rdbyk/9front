@@ -27,18 +27,14 @@ log(double arg)
 	double x, z, zsq, temp;
 	int exp;
 
-	if(arg <= 0)
-		if(arg == 0) {
-			errno = ERANGE;
-			return -HUGE_VAL;
-		}
-		else {
+	if(arg <= 0) {
+		if(arg < 0){
 			errno = EDOM;
 			return NaN();
 		}
-
-	if(isInf(arg,1)) return Inf(1);
-
+		errno = ERANGE;
+		return Inf(-1);
+	}
 	x = frexp(arg, &exp);
 	while(x < 0.5) {
 		x *= 2;
