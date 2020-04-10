@@ -10,7 +10,7 @@ pow(double x, double y) /* return x ^ y (exponentiation) */
 
 	if(y == 0 || x == 1)
 		return 1;
-	if(isNaN(x+y))
+	if(isNaN(x) || isNaN(y))
 		return NaN();
 
 	flip = 0;
@@ -67,7 +67,13 @@ pow(double x, double y) /* return x ^ y (exponentiation) */
 	x = frexp(x, &ex);
 	ey = 0;
 	i = ye;
-	if(i)
+	if(i){
+		if(isInf(x, 0))
+			if(!flip){
+				if(i & 1)			/* inf^i, odd i > 0 */  
+					return x;
+				return -x;
+			}
 		for(;;){
 			if(i & 1){
 				xy *= x;
@@ -83,6 +89,7 @@ pow(double x, double y) /* return x ^ y (exponentiation) */
 				ex -= 1;
 			}
 		}
+	}
 	if(flip){
 		xy = 1. / xy;
 		ey = -ey;
