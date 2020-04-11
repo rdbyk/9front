@@ -68,12 +68,6 @@ pow(double x, double y) /* return x ^ y (exponentiation) */
 	ey = 0;
 	i = ye;
 	if(i){
-		if(isInf(x, 0))
-			if(!flip){
-				if(i & 1)			/* inf^i, odd i > 0 */  
-					return x;
-				return -x;
-			}
 		for(;;){
 			if(i & 1){
 				xy *= x;
