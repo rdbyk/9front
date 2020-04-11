@@ -1,30 +1,32 @@
+#define _RESEARCH_SOURCE	/* fixme: get rid of that define */
 #include <math.h>
-#include <errno.h>
 /*
 	atan2 discovers what quadrant the angle
 	is in and calls atan.
 */
-#define pio2 1.5707963267948966192313217
-#define pi   3.1415926535897932384626434;
+
+#define PI		M_PI
+#define PIO2	M_PI_2
 
 double
 atan2(double arg1, double arg2)
 {
 
-	if(arg1 == 0.0 && arg2 == 0.0){
-		errno = EDOM;
-		return 0.0;
-	}
-	if(arg1+arg2 == arg1) {
-		if(arg1 >= 0)
-			return pio2;
-		return -pio2;
+	if(arg1+arg2 == arg1 || arg1-arg2 == arg1) {
+		if(arg1 == 0) {
+			if (signbit(arg2))
+				return copysign(PI, arg1);
+			return arg1;
+		}
+		if(isInf(arg2, 0)) {
+			if(arg2 < 0)
+				return copysign(3*PI/4, arg1);
+			return copysign(PI/4, arg1);
+		}
+		return copysign(PIO2, arg1);
 	}
 	arg1 = atan(arg1/arg2);
-	if(arg2 < 0) {
-		if(arg1 <= 0)
-			return arg1 + pi;
-		return arg1 - pi;
-	}
+	if(arg2 < 0)
+		return arg1 - copysign(PI, arg1);
 	return arg1;
 }
