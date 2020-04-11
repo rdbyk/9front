@@ -252,7 +252,7 @@ main(int argc, char *argv[])
 		Bprint(&bso, "%ld+%ld = %ld data statements\n",
 			ndata, ncase, ndata+ncase);
 		Bprint(&bso, "%ld symbols\n", nsymbol);
-		Bprint(&bso, "%ld memory used\n", thunk);
+		Bprint(&bso, "%zud memory used\n", thunk);
 		Bprint(&bso, "%d sizeof adr\n", sizeof(Adr));
 		Bprint(&bso, "%d sizeof prog\n", sizeof(Prog));
 	}
@@ -1102,28 +1102,6 @@ appendp(Prog *q)
 	q->link = p;
 	p->line = q->line;
 	return p;
-}
-
-void
-gethunk(void)
-{
-	char *h;
-	long nh;
-
-	nh = NHUNK;
-	if(thunk >= 5L*NHUNK) {
-		nh = 5L*NHUNK;
-		if(thunk >= 25L*NHUNK)
-			nh = 25L*NHUNK;
-	}
-	h = mysbrk(nh);
-	if(h == (char*)-1) {
-		diag("out of memory");
-		errorexit();
-	}
-	hunk = h;
-	nhunk = nh;
-	thunk += nh;
 }
 
 void

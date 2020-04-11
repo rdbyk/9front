@@ -1,14 +1,7 @@
-
 int
 myaccess(char *f)
 {
 	return access(f, AEXIST);
-}
-
-void*
-mysbrk(ulong size)
-{
-	return sbrk(size);
 }
 
 int
@@ -76,4 +69,126 @@ int
 myfork(void)
 {
 	return fork();
+}
+
+
+/*
+ * real allocs
+ */
+
+extern char end[];
+
+char*	hunk = end;
+long	nhunk;
+uintptr	thunk;
+
+void
+gethunk(void)
+{
+	long nh;
+
+	if(thunk < NHUNK)
+		nh = NHUNK;
+	else if(thunk < 1000*NHUNK)
+		nh = thunk;
+	else
+		nh = 1000*NHUNK;
+
+	if(nhunk < 0)
+		nhunk = 0;
+	nhunk += nh;
+	thunk += nh;
+	if(brk(hunk+nhunk) < 0)
+		sysfatal("out of memory");
+}
+
+void*
+alloc(long n)
+{
+	void *p;
+
+	while((uintptr)hunk & 7) {
+		hunk++;
+		nhunk--;
+	}
+	while(nhunk < n)
+		gethunk();
+	p = hunk;
+	nhunk -= n;
+	hunk += n;
+	return p;
+}
+
+void*
+allocn(void *p, long on, long n)
+{
+	void *q;
+
+	q = (uchar*)p + on;
+	if(q != hunk || nhunk < n) {
+		while(nhunk < on+n)
+			gethunk();
+		memmove(hunk, p, on);
+		p = hunk;
+		hunk += on;
+		nhunk -= on;
+	}
+	hunk += n;
+	nhunk -= n;
+	return p;
+}
+
+/*
+ * fake mallocs
+ */
+void*
+malloc(ulong n)
+{
+	return alloc(n);
+}
+
+void*
+calloc(ulong m, ulong n)
+{
+	return alloc(m*n);
+}
+
+void*
+realloc(void *o, ulong n)
+{
+	ulong m;
+	void *a;
+
+	if(n == 0)
+		return nil;
+	if(o == nil)
+		return alloc(n);
+	a = alloc(n);
+	m = (char*)a - (char*)o;
+	if(m < n)
+		n = m;
+	memmove(a, o, n);
+	return a;
+}
+
+void
+free(void*)
+{
+}
+
+/* needed when profiling */
+void*
+mallocz(ulong size, int)
+{
+	return alloc(size);
+}
+
+void
+setmalloctag(void*, uintptr)
+{
+}
+
+void
+setrealloctag(void*, uintptr)
+{
 }

@@ -250,7 +250,7 @@ main(int argc, char *argv[])
 		Bprint(&bso, "%5.2f cpu time\n", cputime());
 		Bprint(&bso, "%ld data statements\n", ndata);
 		Bprint(&bso, "%ld symbols\n", nsymbol);
-		Bprint(&bso, "%ld memory used\n", thunk);
+		Bprint(&bso, "%zud memory used\n", thunk);
 		Bprint(&bso, "%d sizeof adr\n", sizeof(Adr));
 		Bprint(&bso, "%d sizeof prog\n", sizeof(Prog));
 	}
@@ -1080,28 +1080,6 @@ copyp(Prog *q)
 	p = prg();
 	*p = *q;
 	return p;
-}
-
-void
-gethunk(void)
-{
-	char *h;
-	long nh;
-
-	nh = NHUNK;
-	if(thunk >= 5L*NHUNK) {
-		nh = 5L*NHUNK;
-		if(thunk >= 25L*NHUNK)
-			nh = 25L*NHUNK;
-	}
-	h = mysbrk(nh);
-	if(h == (char*)-1) {
-		diag("out of memory");
-		errorexit();
-	}
-	hunk = h;
-	nhunk = nh;
-	thunk += nh;
 }
 
 void
