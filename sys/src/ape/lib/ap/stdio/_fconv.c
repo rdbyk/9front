@@ -469,7 +469,7 @@ _diff(Bigint *a, Bigint *b)
 _d2b(double darg, int *e, int *bits)
 {
 	Bigint *b;
-	int de, i, k;
+	int de, k;
 	unsigned long *x, y, z;
 	Dul d;
 #ifdef VAX
