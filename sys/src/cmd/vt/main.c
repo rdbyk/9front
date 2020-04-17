@@ -988,7 +988,8 @@ plumbsel(void)
 	char *s, wdir[1024];
 	int plumb;
 
-	if((s = selection()) == nil)
+	s = selection();
+	if(s == nil || *s == 0)
 		return;
 	if(getwd(wdir, sizeof wdir) == nil){
 		free(s);
@@ -1027,6 +1028,13 @@ isalnum(Rune c)
 	return 1;
 }
 
+int
+isspace(Rune c)
+{
+	return c == 0 || c == ' ' || c == '\t' ||
+		c == '\n' || c == '\r' || c == '\v';
+}
+
 void
 unselect(void)
 {
@@ -1037,11 +1045,23 @@ unselect(void)
 	selrect = ZR;
 }
 
+int
+inmode(Rune r, int mode)
+{
+	return (mode == 1) ? isalnum(r) : r && !isspace(r);
+}
+
+/*
+ * Selects different things based on mode.
+ * 0: selects swept-over text.
+ * 1: selects alphanumeric segment
+ * 2: selects non-whitespace segment.
+ */
 void
-select(Point p, Point q, int line)
+select(Point p, Point q, int mode)
 {
 	if(onscreenr(p.x, p.y) > onscreenr(q.x, q.y)){
-		select(q, p, line);
+		select(q, p, mode);
 		return;
 	}
 	unselect();
@@ -1055,17 +1075,17 @@ select(Point p, Point q, int line)
 		q.y = ymax;
 		if(!blocksel) q.x = xmax+1;
 	}
-	if(line && eqpt(p, q)){
-		while(p.x > 0 && isalnum(*onscreenr(p.x-1, p.y)))
+	if(mode != 0 && eqpt(p, q)){
+		while(p.x > 0 && inmode(*onscreenr(p.x-1, p.y), mode))
 			p.x--;
-		while(q.x <= xmax && isalnum(*onscreenr(q.x, q.y)))
+		while(q.x <= xmax && inmode(*onscreenr(q.x, q.y), mode))
 			q.x++;
 		if(p.x != q.x)
-			line = 0;
+			mode = 0;
 	}
-	if(p.x < 0 || line)
+	if(p.x < 0 || mode)
 		p.x = 0;
-	if(q.x > xmax+1 || line)
+	if(q.x > xmax+1 || mode)
 		q.x = xmax+1;
 	selrect = Rpt(p, q);
 	for(; p.y <= q.y; p.y++)
@@ -1076,13 +1096,18 @@ void
 selecting(void)
 {
 	Point p, q;
-	static ulong t;
+	static ulong t, mode;
 
 	p = pos(mc->xy);
 	t += mc->msec;
+	mode++;
 	do{
 		q = pos(mc->xy);
-		select(p, q, t < 200);
+		if(t > 200)
+			mode = 0;
+		if(mode > 2)
+			mode = 2;
+		select(p, q, mode);
 		drawscreen();
 		readmouse(mc);
 	} while(button1());
@@ -1116,6 +1141,9 @@ selected(int x, int y)
 void
 readmenu(void)
 {
+	Point p;
+
+	p = pos(mc->xy);
 	if(button3()) {
 		menu3.item[1] = ttystate[cs->raw].crnl ? "cr" : "crnl";
 		menu3.item[2] = ttystate[cs->raw].nlcr ? "nl" : "nlcr";
