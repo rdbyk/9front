@@ -7,10 +7,11 @@
 	It calls frexp.
 */
 
+#define _RESEARCH_SOURCE
 #include <math.h>
 #include <errno.h>
 
-#define	log2    0.693147180559945309e0
+#define	ln2     0.693147180559945309e0
 #define	ln10o1  .4342944819032518276511
 #define	sqrto2  0.707106781186547524e0
 #define	p0      -.240139179559210510e2
@@ -50,7 +51,7 @@ log(double arg)
 
 	temp = ((p3*zsq + p2)*zsq + p1)*zsq + p0;
 	temp = temp/(((zsq + q2)*zsq + q1)*zsq + q0);
-	temp = temp*z + exp*log2;
+	temp = temp*z + exp*ln2;
 	return temp;
 }
 
@@ -58,4 +59,10 @@ double
 log10(double arg)
 {
 	return log(arg) * ln10o1;
+}
+
+double
+log2(double arg)
+{
+	return log(arg) * M_LOG2E;
 }
