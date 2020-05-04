@@ -638,14 +638,21 @@ ieeedtod(Ieee *ieee, double native)
 		return;
 	}
 	fr = frexp(native, &exp);
-	f = 2097152L;		/* shouldnt use fp constants here */
-	fr = modf(fr*f, &ho);
-	ieee->h = ho;
-	ieee->h &= 0xfffffL;
-	ieee->h |= (exp+1022L) << 20;
-	f = 65536L;
-	fr = modf(fr*f, &ho);
-	ieee->l = ho;
-	ieee->l <<= 16;
-	ieee->l |= (long)(fr*f);
+	if(exp > -1022L){
+		f = 2097152L;		/* shouldnt use fp constants here */
+		fr = modf(fr*f, &ho);
+		ieee->h = ho;
+		ieee->h &= 0xfffffL;
+		ieee->h |= (exp+1022L) << 20;
+		f = 65536L;
+		fr = modf(fr*f, &ho);
+		ieee->l = ho;
+		ieee->l <<= 16;
+		ieee->l |= (long)(fr*f);
+	}else{								/* subnormal fp */
+		f = (1LL << 53) >> - (exp+1021L);
+		modf(fr*f, &ho);
+		ieee->h = (long long)ho >> 32;
+		ieee->l = (long long)ho;
+	}
 }
