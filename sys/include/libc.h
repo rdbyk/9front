@@ -283,6 +283,7 @@ extern	double	NaN(void);
 extern	double	Inf(int);
 extern	int	isNaN(double);
 extern	int	isInf(double, int);
+extern	int isSub(double);
 extern	ulong	umuldiv(ulong, ulong, ulong);
 extern	long	muldiv(long, long, long);
 

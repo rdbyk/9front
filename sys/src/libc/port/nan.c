@@ -52,3 +52,12 @@ isInf(double d, int sign)
 		return sign <= 0;
 	return 0;
 }
+
+int
+isSub(double d)
+{
+	FPdbleword a;
+
+	a.x = d;
+	return (a.hi & NANMASK) == 0 && (a.lo || (a.hi << 12));
+}
