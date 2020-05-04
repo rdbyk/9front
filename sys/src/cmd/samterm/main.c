@@ -31,10 +31,11 @@ int	spacesindent;
 void
 threadmain(int argc, char *argv[])
 {
-	int i, got, scr, chord;
+	int i, got, nclick, scr, chord;
 	Text *t;
 	Rectangle r;
 	Flayer *nwhich;
+	ulong p;
 
 	getscreen(argc, argv);
 	iconinit();
@@ -105,8 +106,12 @@ threadmain(int argc, char *argv[])
 					current(nwhich);
 				else{
 					t=(Text *)which->user1;
-					if(flselect(which)){
-						outTsl(Tdclick, t->tag, which->p0);
+					nclick = flselect(which, &p);
+					if(nclick > 0){
+						if(nclick > 1)
+							outTsl(Ttclick, t->tag, p);
+						else
+							outTsl(Tdclick, t->tag, p);
 						t->lock++;
 					}else if(t!=&cmd)
 						outcmd();

@@ -17,13 +17,16 @@ Rtext *pl_rthit(Rtext *, Point, Point, Point);
  * States, also styles
  */
 enum{
-	UP,
+	SUP,	// scrollbar
+	TUP,	// textview
+	UP,	// deprecated
 	DOWN1,
 	DOWN2,
 	DOWN3,
 	DOWN,
 	PASSIVE,
-	FRAME
+	FRAME,
+	BORDER = 1<<8,
 };
 /*
  * Scroll flags
@@ -36,6 +39,9 @@ enum{
 	SCROLLRIGHT,
 	SCROLLABSX,
 };
+
+extern Image *pl_blue;
+
 /*
  * Scrollbar, slider orientations
  */
@@ -51,7 +57,7 @@ Panel *pl_ptinpanel(Point, Panel *);	/* highest-priority subpanel containing poi
 /*
  * Drawing primitives
  */
-int pl_drawinit(int);
+int pl_drawinit(void);
 Rectangle pl_box(Image *, Rectangle, int);
 Rectangle pl_outline(Image *, Rectangle, int);
 Point pl_boxsize(Point, int);

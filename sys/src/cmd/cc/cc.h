@@ -143,6 +143,8 @@ EXTERN struct
 	int	c;
 } fi;
 
+#define	GETC()	((--fi.c < 0)? filbuf(): (*fi.p++ & 0xff))
+
 struct	Io
 {
 	Io*	link;
@@ -554,7 +556,7 @@ void	linehist(char*, int);
 void	macdef(void);
 void	macprag(void);
 void	macend(void);
-void	macexpand(Sym*, char*);
+void	macexpand(Sym*, char*, int);
 void	macif(int);
 void	macinc(void);
 void	maclin(void);

@@ -2,7 +2,7 @@
 #include <libc.h>
 #include "cpp.h"
 
-#define	NSTAK	32
+#define	NSTAK	128
 #define	SGN	0
 #define	UNS	1
 #define	UND	2
@@ -15,80 +15,52 @@ struct value {
 };
 
 /* conversion types */
-#define	RELAT	1
-#define	ARITH	2
-#define	LOGIC	3
-#define	SPCL	4
-#define	SHIFT	5
-#define	UNARY	6
+enum {
+	NONE,
+	RELAT,
+	ARITH,
+	LOGIC,
+	SPCL,
+	SHIFT,
+	UNARY
+};
 
 /* operator priority, arity, and conversion type, indexed by tokentype */
 const struct pri {
 	char	pri;
+	char	assoc;
 	char	arity;
 	char	ctype;
-} priority[] = {
-	[END]		{ 0, 0, 0 },
-	[UNCLASS]	{ 0, 0, 0 },
-	[NAME]		{ 0, 0, 0 },
-	[NUMBER]	{ 0, 0, 0 },
-	[STRING]	{ 0, 0, 0 },
-	[CCON]		{ 0, 0, 0 },
-	[NL]		{ 0, 0, 0 },
-	[WS]		{ 0, 0, 0 },
-	[DSHARP]	{ 0, 0, 0 },
-	[EQ]		{ 11, 2, RELAT },
-	[NEQ]		{ 11, 2, RELAT },
-	[LEQ]		{ 12, 2, RELAT },
-	[GEQ]		{ 12, 2, RELAT },
-	[LSH]		{ 13, 2, SHIFT },
-	[RSH]		{ 13, 2, SHIFT },
-	[LAND]		{ 7, 2, LOGIC },
-	[LOR]		{ 6, 2, LOGIC },
-	[PPLUS]		{ 0, 0, 0 },
-	[MMINUS]	{ 0, 0, 0 },
-	[ARROW]		{ 0, 0, 0 },
-	[SBRA]		{ 0, 0, 0 },
-	[SKET]		{ 0, 0, 0 },
-	[LP]		{ 3, 0, 0 },
-	[RP]		{ 3, 0, 0 },
-	[DOT]		{ 0, 0, 0 },
-	[AND]		{ 10, 2, ARITH },
-	[STAR]		{ 15, 2, ARITH },
-	[PLUS]		{ 14, 2, ARITH },
-	[MINUS]		{ 14, 2, ARITH },
-	[TILDE]		{ 16, 1, UNARY },
-	[NOT]		{ 16, 1, UNARY },
-	[SLASH]		{ 15, 2, ARITH },
-	[PCT]		{ 15, 2, ARITH },
-	[LT]		{ 12, 2, RELAT },
-	[GT]		{ 12, 2, RELAT },
-	[CIRC]		{ 9, 2, ARITH },
-	[OR]		{ 8, 2, ARITH },
-	[QUEST]		{ 5, 2, SPCL },
-	[COLON]		{ 5, 2, SPCL },
-	[ASGN]		{ 0, 0, 0 },
-	[COMMA]		{ 4, 2, 0 },
-	[XCOMMA]	{ 4, 2, 0 },
-	[SHARP]		{ 0, 0, 0 },
-	[SEMIC]		{ 0, 0, 0 },
-	[CBRA]		{ 0, 0, 0 },
-	[CKET]		{ 0, 0, 0 },
-	[ASPLUS]	{ 0, 0, 0 },
- 	[ASMINUS]	{ 0, 0, 0 },
- 	[ASSTAR]	{ 0, 0, 0 },
- 	[ASSLASH]	{ 0, 0, 0 },
- 	[ASPCT]		{ 0, 0, 0 },
- 	[ASCIRC]	{ 0, 0, 0 },
- 	[ASLSH]		{ 0, 0, 0 },
-	[ASRSH]		{ 0, 0, 0 },
- 	[ASOR]		{ 0, 0, 0 },
- 	[ASAND]		{ 0, 0, 0 },
-	[ELLIPS]	{ 0, 0, 0 },
-	[DSHARP1]	{ 0, 0, 0 },
-	[NAME1]		{ 0, 0, 0 },
-	[DEFINED]	{ 16, 1, UNARY },
-	[UMINUS]	{ 16, 0, UNARY },
+} priority[MAXTOK] = {
+	[END]		{ 0, 0, 0, 0 },
+	[EQ]		{ 11, 0, 2, RELAT },
+	[NEQ]		{ 11, 0, 2, RELAT },
+	[LEQ]		{ 12, 0, 2, RELAT },
+	[GEQ]		{ 12, 0, 2, RELAT },
+	[LSH]		{ 13, 0, 2, SHIFT },
+	[RSH]		{ 13, 0, 2, SHIFT },
+	[LAND]		{ 7, 0, 2, LOGIC },
+	[LOR]		{ 6, 0, 2, LOGIC },
+	[LP]		{ 3, 1, 0, 0 },
+	[RP]		{ 3, 1, 0, 0 },
+	[AND]		{ 10, 0, 2, ARITH },
+	[STAR]		{ 15, 0, 2, ARITH },
+	[PLUS]		{ 14, 0, 2, ARITH },
+	[MINUS]		{ 14, 0, 2, ARITH },
+	[TILDE]		{ 16, 0, 1, UNARY },
+	[NOT]		{ 16, 0, 1, UNARY },
+	[SLASH]		{ 15, 0, 2, ARITH },
+	[PCT]		{ 15, 0, 2, ARITH },
+	[LT]		{ 12, 0, 2, RELAT },
+	[GT]		{ 12, 0, 2, RELAT },
+	[CIRC]		{ 9, 0, 2, ARITH },
+	[OR]		{ 8, 0, 2, ARITH },
+	[QUEST]		{ 5, 1, 2, SPCL },
+	[COLON]		{ 5, 1, 2, SPCL },
+	[COMMA]		{ 4, 0, 2, 0 },
+	[XCOMMA]	{ 4, 0, 2, 0 },
+	[DEFINED]	{ 16, 0, 1, UNARY },
+	[UMINUS]	{ 16, 0, 0, UNARY },
 };
 
 int	evalop(struct pri);
@@ -98,6 +70,7 @@ enum toktype ops[NSTAK], *op;
 
 /*
  * Evaluate an #if #elif #ifdef #ifndef line.  trp->tp points to the keyword.
+ * Using shunting yard algorithm.
  */
 vlong
 eval(Tokenrow *trp, int kw)
@@ -121,7 +94,6 @@ eval(Tokenrow *trp, int kw)
 	kwdefined->val = NAME;
 	vp = vals;
 	op = ops;
-	*op++ = END;
 	for (rand=0, tp = trp->bp+ntok; tp < trp->lp; tp++) {
 		switch(tp->type) {
 		case WS:
@@ -136,6 +108,8 @@ eval(Tokenrow *trp, int kw)
 		case STRING:
 			if (rand)
 				goto syntax;
+			if(vp == vals + NSTAK)
+				goto fullstakdeveloper;
 			*vp++ = tokval(tp);
 			rand = 1;
 			continue;
@@ -146,12 +120,16 @@ eval(Tokenrow *trp, int kw)
 		case NOT:
 			if (rand)
 				goto syntax;
+			if(op == ops + NSTAK)
+				goto fullstakdeveloper;
 			*op++ = tp->type;
 			continue;
 
 		/* unary-binary */
 		case PLUS: case MINUS: case STAR: case AND:
 			if (rand==0) {
+				if(op == ops + NSTAK)
+					goto fullstakdeveloper;
 				if (tp->type==MINUS)
 					*op++ = UMINUS;
 				if (tp->type==STAR || tp->type==AND) {
@@ -171,6 +149,8 @@ eval(Tokenrow *trp, int kw)
 				goto syntax;
 			if (evalop(priority[tp->type])!=0)
 				return 0;
+			if(op == ops + NSTAK)
+				goto fullstakdeveloper;
 			*op++ = tp->type;
 			rand = 0;
 			continue;
@@ -178,6 +158,8 @@ eval(Tokenrow *trp, int kw)
 		case LP:
 			if (rand)
 				goto syntax;
+			if(op == ops + NSTAK)
+				goto fullstakdeveloper;
 			*op++ = LP;
 			continue;
 
@@ -201,7 +183,7 @@ eval(Tokenrow *trp, int kw)
 		goto syntax;
 	if (evalop(priority[END])!=0)
 		return 0;
-	if (op!=&ops[1] || vp!=&vals[1]) {
+	if (op!=ops || vp!=&vals[1]) {
 		error(ERROR, "Botch in #if/#elif");
 		return 0;
 	}
@@ -209,7 +191,10 @@ eval(Tokenrow *trp, int kw)
 		error(ERROR, "Undefined expression value");
 	return vals[0].val;
 syntax:
-	error(ERROR, "Syntax error in #if/#elif");
+	error(ERROR, "Syntax xx error in #if/#elif");
+	return 0;
+fullstakdeveloper:
+	error(ERROR, "Out of stack space evaluating #if");
 	return 0;
 }
 
@@ -222,7 +207,7 @@ evalop(struct pri pri)
 
 	rv2=0;
 	rtype=0;
-	while (pri.pri < priority[op[-1]].pri) {
+	while (op != ops && pri.pri + pri.assoc <= priority[op[-1]].pri) {
 		oper = *--op;
 		if (priority[oper].arity==2) {
 			v2 = *--vp;
@@ -375,6 +360,10 @@ evalop(struct pri pri)
 		}
 		v1.val = rv1;
 		v1.type = rtype;
+		if(op == ops + NSTAK){
+			error(ERROR, "Out of stack space evaluating #if");
+			return 0;
+		}
 		*vp++ = v1;
 	}
 	return 0;
