@@ -2278,12 +2278,15 @@ pollcheck(Hci *hp)
 
 	if(poll->must != 0 && poll->does == 0){
 		lock(poll);
-		if(poll->must != 0 && poll->does == 0){
-			poll->does++;
-			print("ehci %#p: polling\n", ctlr->capio);
-			kproc("ehcipoll", ehcipoll, hp);
+		if(poll->must == 0 || poll->does != 0) {
+			unlock(poll);
+			return;
 		}
+		poll->does++;
 		unlock(poll);
+
+		print("ehci %#p: polling\n", ctlr->capio);
+		kproc("ehcipoll", ehcipoll, hp);
 	}
 }
 
@@ -2324,9 +2327,11 @@ epiowait(Hci *hp, Qio *io, int tmout, ulong load)
 	if(qh->state == Qrun){
 		ctlrinterrupt(ctlr);
 		if(qh->state == Qdone){
+			iunlock(ctlr);
 			dqprint("ehci %#p: polling required\n", ctlr->capio);
 			ctlr->poll.must = 1;
 			pollcheck(hp);
+			ilock(ctlr);
 		}
 	}
 

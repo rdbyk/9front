@@ -10,17 +10,38 @@ usage(void)
 }
 
 char*
+skipspace(char *p)
+{
+	while(isspace(*p))
+		p++;
+	return p;
+}
+
+char*
+nextarg(char *p)
+{
+	char *s;
+
+	s = strchr(p, ',');
+	if(s == nil)
+		return p+strlen(p); /* to \0 */
+	while(*s == ',' || isspace(*s))
+		s++;
+	return s;
+}
+
+char*
 findarg(char *flags, Rune r)
 {
 	char *p;
 	Rune rr;
-	
-	for(p=flags; p!=(char*)1; p=strchr(p, ',')+1){
+
+	for(p=skipspace(flags); *p; p=nextarg(p)){
 		chartorune(&rr, p);
 		if(rr == r)
 			return p;
 	}
-	return nil;	
+	return nil;
 }
 
 char*
@@ -44,10 +65,8 @@ countargs(char *p)
 	int n;
 
 	n = 1;
-	while(*p == ' ')
-		p++;
-	for(; *p && *p != ','; p++)
-		if(*p == ' ' && *(p-1) != ' ')
+	for(p=skipspace(p); *p && *p != ','; p++)
+		if(isspace(*p) && !isspace(*(p-1)))
 			n++;
 	return n;
 }
@@ -57,6 +76,7 @@ main(int argc, char *argv[])
 {
 	char *flags, *p, *s, *e, buf[512];
 	int i, n;
+	Rune r;
 	Fmt fmt;
 	
 	doquote = needsrcquote;
@@ -71,16 +91,17 @@ main(int argc, char *argv[])
 	}
 
 	fmtfdinit(&fmt, 1, buf, sizeof buf);
-	for(p=flags; p!=(char*)1 && *p != 0; p=strchr(p, ',')+1){
+	for(p=skipspace(flags); *p; p=nextarg(p)){
 		s = e = nil;
-		if(p[1] == ':'){
-			s = p + 2;
+		n = chartorune(&r, p);
+		if(p[n] == ':'){
+			s = p + n + 1;
 			e = argname(s);
 		}
 		if(s != e)
 			fmtprint(&fmt, "%.*s=()\n", (int)(e - s), s);
 		else
-			fmtprint(&fmt, "flag%.1s=()\n", p);
+			fmtprint(&fmt, "flag%C=()\n", r);
 	}
 	ARGBEGIN{
 	default:

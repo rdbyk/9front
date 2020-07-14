@@ -68,7 +68,6 @@ int vfscanf(FILE *f, const char *s, va_list args){
 			do
 				c=ngetc(f);
 			while(isspace(c));
-			if(c==EOF) return ncvt?ncvt:EOF;
 			nungetc(c, f);
 			break;
 		}
@@ -103,8 +102,6 @@ int vfscanf(FILE *f, const char *s, va_list args){
 	return ncvt;	
 }
 static int icvt_n(FILE *f, va_list *args, int store, int width, int type){
-#pragma ref f
-#pragma ref width
 	if(store){
 		--ncvt;	/* this assignment doesn't count! */
 		switch(type){
@@ -276,7 +273,6 @@ Done:
 	return 1;
 }
 static int icvt_s(FILE *f, va_list *args, int store, int width, int type){
-#pragma ref type
 	int c, nn;
 	register char *s;
 	if(store) s=va_arg(*args, char *);
@@ -304,7 +300,6 @@ Done:
 	return 1;
 }
 static int icvt_c(FILE *f, va_list *args, int store, int width, int type){
-#pragma ref type
 	int c;
 	register char *s;
 	if(store) s=va_arg(*args, char *);
@@ -336,10 +331,10 @@ static int match(int c, const char *pat){
 	return !ok;
 }
 static int icvt_sq(FILE *f, va_list *args, int store, int width, int type){
-#pragma ref type
 	int c, nn;
 	register char *s;
 	register const char *pat;
+
 	pat=++fmtp;
 	if(*fmtp=='^') fmtp++;
 	if(*fmtp!='\0') fmtp++;
@@ -353,12 +348,14 @@ static int icvt_sq(FILE *f, va_list *args, int store, int width, int type){
 			if(nn==0) return 0;
 			else goto Done;
 		}
-		if(!match(c, pat)) break;
+		if(!match(c, pat)){
+			nungetc(c, f);
+			goto Done;
+		}
 		if(store) *s++=c;
 		nn++;
 	}
-	nungetc(c, f);
 Done:
 	if(store) *s='\0';
-	return 1;
+	return nn > 0;
 }

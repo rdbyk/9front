@@ -749,7 +749,7 @@ cpuidentify(void)
 	X86type *t, *tab;
 	uintptr cr4;
 	ulong regs[4];
-	vlong mca, mct;
+	vlong mca, mct, pat;
 
 	cpuid(Highstdfunc, regs);
 	memmove(m->cpuidid,   &regs[1], BY2WD);	/* bx */
@@ -881,6 +881,15 @@ cpuidentify(void)
 		if((m->cpuiddx & (Mca|Mce)) == Mce)
 			rdmsr(0x01, &mct);
 	}
+
+#ifdef PATWC
+	/* IA32_PAT write combining */
+	if((m->cpuiddx & Pat) != 0 && rdmsr(0x277, &pat) != -1){
+		pat &= ~(255LL<<(PATWC*8));
+		pat |= 1LL<<(PATWC*8);	/* WC */
+		wrmsr(0x277, pat);
+	}
+#endif
 
 	if(m->cpuiddx & Mtrr)
 		mtrrsync();
@@ -1238,7 +1247,7 @@ isaconfig(char *class, int ctlrno, ISAConf *isa)
 		if(cistrncmp(p, "type=", 5) == 0)
 			isa->type = p + 5;
 		else if(cistrncmp(p, "port=", 5) == 0)
-			isa->port = strtoul(p+5, &p, 0);
+			isa->port = strtoull(p+5, &p, 0);
 		else if(cistrncmp(p, "irq=", 4) == 0)
 			isa->irq = strtoul(p+4, &p, 0);
 		else if(cistrncmp(p, "dma=", 4) == 0)

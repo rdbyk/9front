@@ -81,6 +81,7 @@ struct	Sym
 	short	version;
 	short	become;
 	short	frame;
+	char	dupok;
 	uchar	subtype;
 	ushort	file;
 	vlong	value;
@@ -373,7 +374,6 @@ void	errorexit(void);
 void	export(void);
 void	follow(void);
 void	histtoauto(void);
-void*	halloc(usize);
 int	isnop(Prog*);
 double	ieeedtod(Ieee*);
 long	ieeedtof(Ieee*);

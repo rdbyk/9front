@@ -167,7 +167,7 @@ threadmain(int argc, char *argv[])
 	cedit = chancreate(sizeof(int), 0);
 	cexit = chancreate(sizeof(int), 0);
 	cwarn = chancreate(sizeof(void*), 1);
-	if(cwait==nil || ccommand==nil || ckill==nil || cxfidalloc==nil || cxfidfree==nil || cerr==nil || cexit==nil || cwarn==nil){
+	if(cwait==nil || ccommand==nil || ckill==nil || cxfidalloc==nil || cxfidfree==nil || cnewwindow==nil || cerr==nil || cedit==nil || cexit==nil || cwarn==nil){
 		fprint(2, "acme: can't create initial channels: %r\n");
 		threadexitsall("channels");
 	}
@@ -258,6 +258,7 @@ readfile(Column *c, char *s)
 	winsettag(w);
 	textscrdraw(&w->body);
 	textsetselect(&w->tag, w->tag.file->nc, w->tag.file->nc);
+	xfidlog(w, "new");
 }
 
 char *oknotes[] ={
@@ -487,6 +488,12 @@ mousethread(void *)
 			m = mousectl->Mouse;
 			qlock(&row);
 			t = rowwhich(&row, m.xy);
+
+			if((t!=mousetext && t!=nil && t->w!=nil) &&
+				(mousetext==nil || mousetext->w==nil || t->w->id!=mousetext->w->id)) {
+				xfidlog(t->w, "focus");
+			}
+
 			if(t!=mousetext && mousetext!=nil && mousetext->w!=nil){
 				winlock(mousetext->w, 'M');
 				mousetext->eq0 = ~0;
@@ -506,26 +513,19 @@ mousethread(void *)
 				but = 2;
 			else if(m.buttons == 4)
 				but = 3;
+			else if(m.buttons == 8)
+				but = 4;
+			else if(m.buttons == 16)
+				but = 5;
 			barttext = t;
-			if(t->what==Body && ptinrect(m.xy, t->scrollr)){
+			if(t->what==Body && w != nil
+			&& (ptinrect(m.xy, t->scrollr) || (m.buttons & (8|16)))){
 				if(but){
 					winlock(w, 'M');
 					t->eq0 = ~0;
 					textscroll(t, but);
 					winunlock(w);
 				}
-				goto Continue;
-			}
-			/* scroll buttons, wheels, etc. */
-			if(t->what==Body && w != nil && (m.buttons & (8|16))){
-				if(m.buttons & 8)
-					but = Kscrolloneup;
-				else
-					but = Kscrollonedown;
-				winlock(w, 'M');
-				t->eq0 = ~0;
-				texttype(t, but);
-				winunlock(w);
 				goto Continue;
 			}
 			if(ptinrect(m.xy, t->scrollr)){
@@ -773,6 +773,7 @@ newwindowthread(void*)
 		recvp(cnewwindow);
 		w = makenewwindow(nil);
 		winsettag(w);
+		xfidlog(w, "new");
 		sendp(cnewwindow, w);
 	}
 }

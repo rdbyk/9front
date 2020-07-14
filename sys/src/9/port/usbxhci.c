@@ -187,6 +187,7 @@ struct Ring
 
 	int	stopped;
 
+	int	*residue;
 	Wait	*pending;
 	Lock;
 };
@@ -254,7 +255,7 @@ struct Ctlr
 
 	Rendez	recover;	
 	void	*active;
-	uintptr	base;
+	uvlong	base;
 };
 
 struct Epio
@@ -269,6 +270,10 @@ struct Epio
 	u32int	period;
 	u32int	incr;
 	u32int	tdsz;
+
+	/* isoread */
+	u32int	rp0;
+	u32int	frame0;
 
 	int	nleft;
 };
@@ -308,6 +313,8 @@ freering(Ring *r)
 		dmaflush(0, r->base, 4*4<<r->shift);
 		free(r->base);
 	}
+	if(r->residue != nil)
+		free(r->residue);
 	memset(r, 0, sizeof(*r));
 }
 
@@ -319,6 +326,7 @@ initring(Ring *r, int shift)
 	r->slot = nil;
 	r->doorbell = nil;
 	r->pending = nil;
+	r->residue = nil;
 	r->stopped = 0;
 	r->shift = shift;
 	r->mask = (1<<shift)-1;
@@ -694,6 +702,8 @@ queuetd(Ring *r, u32int c, u32int s, u64int p, Wait *w)
 		r->pending = w;
 		iunlock(r);
 	}
+	if(r->residue != nil)
+		r->residue[x & r->mask] = s;
 	coherence();
 	*(u64int*)td = p;
 	td[2] = s;
@@ -828,10 +838,12 @@ completering(Ring *r, u32int *er)
 	pa = (*(u64int*)er) & ~15ULL;
 	ilock(r);
 
-	for(x = r->rp; (int)(r->wp - x) > 0;){
-		td = &r->base[4*(x++ & r->mask)];
+	for(x = r->rp; (int)(r->wp - x) > 0; x++){
+		td = &r->base[4*(x & r->mask)];
 		if((u64int)PCIWADDR(td) == pa){
-			r->rp = x;
+			if(r->residue != nil)
+				r->residue[x & r->mask] = er[2] & 0xFFFFFF;
+			r->rp = x+1;
 			break;
 		}
 	}
@@ -1088,10 +1100,17 @@ initisoio(Epio *io, Ep *ep)
 {
 	if(io->ring == nil)
 		return;
-	io->frame = 0;
-	io->period = ep->pollival<<3*(ep->dev->speed == Fullspeed);
-	io->incr = (ep->hz*io->period<<8)/8000;
-	io->tdsz = (io->incr+255>>8)*ep->samplesz;
+	io->rp0 = io->ring->wp;
+	io->frame0 = io->frame = 0;
+	io->period = ep->pollival << 3*(ep->dev->speed == Fullspeed || ep->dev->speed == Lowspeed);
+	if(io->ring->id & 1){
+		io->ring->residue = smalloc((io->ring->mask+1)*sizeof(io->ring->residue[0]));
+		io->incr = 0;
+		io->tdsz = ep->maxpkt*ep->ntds;
+	} else {
+		io->incr = ((vlong)ep->hz*ep->pollival<<8)/1000;
+		io->tdsz = (io->incr+255>>8)*ep->samplesz;
+	}
 	io->b = allocb((io->ring->mask+1)*io->tdsz);
 }
 
@@ -1239,7 +1258,7 @@ epopen(Ep *ep)
 	slot->nep = 1;
 	ring->slot = slot;
 	ring->doorbell = &ctlr->dba[slot->id];
-	ring->ctx = &slot->obase[8];
+	ring->ctx = &slot->obase[8<<ctlr->csz];
 
 	/* (input) control context */
 	w = slot->ibase;
@@ -1300,10 +1319,80 @@ epopen(Ep *ep)
 }
 
 static long
-isoread(Ep *, uchar *, long)
+isoread(Ep *ep, uchar *p, long n)
 {
-	error(Egreg);
-	return 0;
+	uchar *s, *d;
+	Ctlr *ctlr;
+	Epio *io;
+	u32int i, µ;
+	long m;
+
+	s = p;
+
+	io = (Epio*)ep->aux + OREAD;
+	qlock(io);
+	if(waserror()){
+		qunlock(io);
+		nexterror();
+	}
+	µ = io->period;
+	ctlr = ep->hp->aux;
+Again:
+	if(needrecover(ctlr))
+		error(Erecover);
+
+	for(i = io->frame0; (int)(io->ring->rp - io->rp0) > 0 && n > 0; i++) {
+		if((io->rp0 & io->ring->mask) == io->ring->mask)
+			io->rp0++;
+		m = io->tdsz - io->ring->residue[io->rp0 & io->ring->mask];
+		if(m > 0){
+			d = io->b->rp + (i&io->ring->mask)*io->tdsz;
+			d += io->nleft, m -= io->nleft;
+			if(n < m){
+				dmaflush(0, d, n);
+				memmove(p, d, n);
+				io->nleft += n;
+				p += n;
+				n = 0;
+				break;
+			}
+			dmaflush(0, d, m);
+			memmove(p, d, m);
+			p += m, n -= m;
+
+			if(ep->uframes == 1)
+				n = 0;
+		}
+		io->nleft = 0;
+		io->rp0++;
+	}
+	io->frame0 = i;
+
+	for(i = io->frame;; i++){
+		m = (int)(io->ring->wp - io->rp0);
+		if(m <= 0) {
+			i = (80 + µframe(ctlr))/µ;
+			io->frame0 = i;
+			io->rp0 = io->ring->wp;
+			io->nleft = 0;
+		} else if(m+1 >= io->ring->mask)
+			break;
+		m = io->tdsz;
+		d = io->b->rp + (i&io->ring->mask)*io->tdsz;
+		dmaflush(1, d, m);
+		queuetd(io->ring, TR_ISOCH | (i*µ/8 & 0x7ff)<<20 | TR_IOC, m, PCIWADDR(d), nil);
+	}
+	io->frame = i;
+
+	*io->ring->doorbell = io->ring->id;
+	if(p == s){
+		tsleep(&up->sleep, return0, nil, 5);
+		goto Again;
+	}
+	qunlock(io);
+	poperror();
+
+	return p - s;
 }
 
 static long
@@ -1324,15 +1413,17 @@ isowrite(Ep *ep, uchar *p, long n)
 	}
 	µ = io->period;
 	ctlr = ep->hp->aux;
-	if(needrecover(ctlr))
-		error(Erecover);
+
 	for(i = io->frame;; i++){
 		for(;;){
+			if(needrecover(ctlr))
+				error(Erecover);
 			m = (int)(io->ring->wp - io->ring->rp);
 			if(m <= 0)
 				i = (80 + µframe(ctlr))/µ;
-			if(m < io->ring->mask)
+			if(m+1 < io->ring->mask)
 				break;
+
 			*io->ring->doorbell = io->ring->id;
 			tsleep(&up->sleep, return0, nil, 5);
 		}
@@ -1353,14 +1444,19 @@ isowrite(Ep *ep, uchar *p, long n)
 		queuetd(io->ring, TR_ISOCH | (i*µ/8 & 0x7ff)<<20 | TR_IOC, m, PCIWADDR(d), nil);
 	}
 	io->frame = i;
+
 	while(io->ring->rp != io->ring->wp){
 		int d = (int)(i*µ - µframe(ctlr))/8;
 		d -= ep->sampledelay*1000 / ep->hz;
 		if(d < 5)
 			break;
+
 		*io->ring->doorbell = io->ring->id;
 		tsleep(&up->sleep, return0, nil, d);
+		if(needrecover(ctlr))
+			error(Erecover);
 	}
+
 	qunlock(io);
 	poperror();
 
@@ -1697,7 +1793,7 @@ scanpci(void)
 {
 	static int already = 0;
 	int i;
-	uintptr io;
+	uvlong io;
 	Ctlr *ctlr;
 	Pcidev *p;
 	u32int *mmio; 
@@ -1712,10 +1808,12 @@ scanpci(void)
 		 */
 		if(p->ccrb != Pcibcserial || p->ccru != Pciscusb || p->ccrp != 0x30)
 			continue;
+		if(p->mem[0].bar & 1)
+			continue;
 		io = p->mem[0].bar & ~0x0f;
 		if(io == 0)
 			continue;
-		print("usbxhci: %#x %#x: port %#p size %#x irq %d\n",
+		print("usbxhci: %#x %#x: port %llux size %d irq %d\n",
 			p->vid, p->did, io, p->mem[0].size, p->intl);
 		mmio = vmap(io, p->mem[0].size);
 		if(mmio == nil){

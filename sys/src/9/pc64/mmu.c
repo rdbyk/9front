@@ -38,9 +38,6 @@ enum {
 	PDE	= 0,
 
 	MAPBITS	= 8*sizeof(m->mmumap[0]),
-
-	/* PAT entry used for write combining */
-	PATWC	= 7,
 };
 
 static void
@@ -133,14 +130,6 @@ mmuinit(void)
 	wrmsr(Star, ((uvlong)UE32SEL << 48) | ((uvlong)KESEL << 32));
 	wrmsr(Lstar, (uvlong)syscallentry);
 	wrmsr(Sfmask, 0x200);
-
-	/* IA32_PAT write combining */
-	if((MACHP(0)->cpuiddx & Pat) != 0
-	&& rdmsr(0x277, &v) != -1){
-		v &= ~(255LL<<(PATWC*8));
-		v |= 1LL<<(PATWC*8);	/* WC */
-		wrmsr(0x277, v);
-	}
 }
 
 /*
@@ -590,14 +579,17 @@ kunmap(KMap *k)
  * synchronization is being done.
  */
 void*
-vmap(uintptr pa, int size)
+vmap(uvlong pa, int size)
 {
 	uintptr va;
 	int o;
 
-	if(pa+size > VMAPSIZE)
-		return 0;
+	if(pa < BY2PG || size <= 0 || -pa < size || pa+size > VMAPSIZE){
+		print("vmap pa=%llux size=%d pc=%#p\n", pa, size, getcallerpc(&pa));
+		return nil;
+	}
 	va = pa+VMAP;
+
 	/*
 	 * might be asking for less than a page.
 	 */

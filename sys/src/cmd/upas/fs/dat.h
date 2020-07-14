@@ -34,9 +34,6 @@ enum {
 	Disappear	= 1<<3,
 	Dmark		= 1<<4,	/* temporary mark for idx scan */
 
-	/* mime flags */
-	Mtrunc		= 1<<0,	/* message had no boundary */
-
 	Maxmsg		= 75*1024*1024,	/* maxmessage size; debugging */
 	Maxcache	= 512*1024,	/* target cache size; set low for debugging */
 	Nctab		= 15,		/* max # of cached messages >10 */
@@ -70,6 +67,7 @@ struct Idx {
 	char	*subject;
 	char	*sender;
 	char	*inreplyto;
+	char	*date822;
 	char	*idxaux;		/* mailbox specific */
 
 	char	*type;			/* mime info */
@@ -120,7 +118,6 @@ struct Message {
 	/* mail info */
 	char	*unixheader;
 	char	*unixfrom;
-	char	*date822;
 	char	*references[Nref]; /* nil terminated unless full */
 
 	/* mime info */
@@ -129,7 +126,6 @@ struct Message {
 	char	converted;
 	char	encoding;
 	char	decoded;
-	char	mimeflag;
 
 	Message	*next;
 	Message	*part;

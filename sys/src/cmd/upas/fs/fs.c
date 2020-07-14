@@ -423,11 +423,12 @@ fileinfo(Mailbox *mb, Message *m, int t, char **pp)
 		}
 		break;
 	case Qdate:
-		p = m->date822;
-		if(p == nil){
-			p = buf;
-			len = snprint(buf, sizeof buf, "%#Δ", m->fileid);
-		}
+		if((p = m->date822) != nil)
+			break;
+		/* wet floor */
+	case Qunixdate:
+		p = buf;
+		len = snprint(buf, sizeof buf, "%#Δ", m->fileid);
 		break;
 	case Qfilename:
 		p = m->filename;
@@ -442,10 +443,7 @@ fileinfo(Mailbox *mb, Message *m, int t, char **pp)
 		p = m->messageid;
 		break;
 	case Qfrom:
-		if(m->from != nil)
-			p = m->from;
-		else
-			p = m->unixfrom;
+		p = m->from;
 		break;
 	case Qffrom:
 		p = m->ffrom;
@@ -494,7 +492,7 @@ fileinfo(Mailbox *mb, Message *m, int t, char **pp)
 		e = buf + sizeof buf;
 		s = buf;
 		for(i = 0; i < nelem(m->references); i++){
-			if(m->references[i] == 0)
+			if(m->references[i] == nil)
 				break;
 			s = seprint(s, e, "%s\n", m->references[i]);
 		}
@@ -503,14 +501,7 @@ fileinfo(Mailbox *mb, Message *m, int t, char **pp)
 		len = s - buf;
 		break;
 	case Qreplyto:
-		if(m->replyto != nil)
-			p = m->replyto;
-		else if(m->from != nil)
-			p = m->from;
-		else if(m->sender != nil)
-			p = m->sender;
-		else if(m->unixfrom != nil)
-			p = m->unixfrom;
+		p = m->replyto;
 		break;
 	case Qsender:
 		p = m->sender;
@@ -527,10 +518,6 @@ fileinfo(Mailbox *mb, Message *m, int t, char **pp)
 		break;
 	case Qtype:
 		p = m->type;
-		break;
-	case Qunixdate:
-		p = buf;
-		len = snprint(buf, sizeof buf, "%#Δ", m->fileid);
 		break;
 	case Qfileid:
 		p = buf;
@@ -1517,12 +1504,12 @@ struct Ignorance
 	char	*str;
 	int	len;
 };
-Ignorance *ignorance;
+static Ignorance *ignorance;
 
 /*
  *  read the file of headers to ignore
  */
-void
+static void
 readignore(void)
 {
 	char *p;
@@ -1554,14 +1541,14 @@ readignore(void)
 	Bterm(b);
 }
 
-int
-ignore(char *p)
+static int
+ignore(char *p, int n)
 {
 	Ignorance *i;
 
 	readignore();
 	for(i = ignorance; i != nil; i = i->next)
-		if(cistrncmp(i->str, p, i->len) == 0)
+		if(i->len <= n && cistrncmp(i->str, p, i->len) == 0)
 			return 1;
 	return 0;
 }
@@ -1580,9 +1567,9 @@ readheader(Message *m, char *buf, int off, int cnt)
 
 	/* copy in good headers */
 	while(cnt > 0 && p < e){
-		n = hdrlen(p, e);
-		assert(n > 0);
-		if(ignore(p)){
+		if((n = hdrlen(p, e)) <= 0)
+			break;
+		if(ignore(p, n)){
 			p += n;
 			continue;
 		}

@@ -393,8 +393,6 @@ haschild(Message *m, int i)
 {
 	for(m = m->part; m && i; i--)
 		m = m->next;
-	if(m)
-		m->mimeflag = 0;
 	return m;
 }
 
@@ -426,11 +424,8 @@ parseattachments(Message *m, Mailbox *mb)
 			}
 			/* no boundary, we're done */
 			if(x == nil){
-				if(nm != nil){
+				if(nm != nil)
 					nm->rbend = nm->bend = nm->end = m->bend;
-					if(nm->end == nm->start)
-						nm->mimeflag |= Mtrunc;
-				}
 				break;
 			}
 			/* boundary must be at the start of a line */
@@ -475,12 +470,25 @@ parseattachments(Message *m, Mailbox *mb)
 		assert(nm->ballocd == 0);
 		nm->start = nm->header = nm->body = nm->rbody = m->body;
 		nm->end = nm->bend = nm->rbend = m->bend;
-		if(nm->end == nm->start)
-			nm->mimeflag |= Mtrunc;
 		nm->size = nm->end - nm->start;
 		parse(mb, nm, 0, 0);
 		cachehash(mb, nm);			/* botchy place for this */
 	}
+}
+
+static void
+parseunix(Message *m)
+{
+	char *s, *p;
+
+	m->unixheader = smprint("%.*s", utfnlen(m->start, m->header - m->start), m->start);
+	s = m->start + 5;
+	if((p = strchr(s, ' ')) == nil)
+		return;
+	*p = 0;
+	free(m->unixfrom);
+	m->unixfrom = strdup(s);
+	*p = ' ';
 }
 
 void
@@ -490,14 +498,26 @@ parseheaders(Mailbox *mb, Message *m, int addfrom, int justmime)
 	int i, i0, n;
 	uintptr a;
 
+	if(m->header == nil)
+		m->header = m->start;
+
+	/* parse unix header */
+	if(!justmime && !addfrom && m->unixheader == nil){
+		if(strncmp(m->start, "From ", 5) == 0)
+		if((e = memchr(m->start, '\n', m->end - m->start)) != nil){
+			m->header = e + 1;
+			parseunix(m);
+		}
+	}
+
 	/* parse mime headers */
-	p = m->header;
+	p = m->mheader = m->mhend = m->header;
 	i0 = 0;
 	if(justmime)
 		i0 = Mhead;
 	s = emalloc(2048);
 	e = s + 2048 - 1;
-	while((n = hdrlen(p, m->end)) != 0){
+	while((n = hdrlen(p, m->end)) > 0){
 		if(n > e - s){
 			s = erealloc(s, n);
 			e = s + n - 1;
@@ -527,11 +547,6 @@ parseheaders(Mailbox *mb, Message *m, int addfrom, int justmime)
 		m->hend = p;
 		m->mhend = m->header;
 	}
-	/*
-	 * not all attachments have mime headers themselves.
-	 */
-	if(!m->mheader)
-		m->mhend = 0;
 	if(*p == '\n')
 		p++;
 	m->rbody = m->body = p;
@@ -545,12 +560,13 @@ parseheaders(Mailbox *mb, Message *m, int addfrom, int justmime)
 	 *  adding the unix header all the time screws up mime-attached
 	 *  rfc822 messages.
 	 */
-	if(!addfrom && !m->unixfrom)
+	if(!addfrom && m->unixfrom == nil) {
+		free(m->unixheader);
 		m->unixheader = nil;
-	else if(m->unixheader == nil){
-		if(m->unixfrom && strcmp(m->unixfrom, "???") != 0)
+	} else if(m->unixheader == nil){
+		if(m->unixfrom != nil && strcmp(m->unixfrom, "???") != 0)
 			p = m->unixfrom;
-		else if(m->from)
+		else if(m->from != nil)
 			p = m->from;
 		else
 			p = "???";
@@ -590,6 +606,24 @@ parsebody(Message *m, Mailbox *mb)
 		}
 	}else if(strncmp(m->type, "text/", 5) == 0)
 		sanemsg(m);
+
+	free(m->boundary);
+	m->boundary = nil;
+
+	if(m->replyto == nil){
+		if(m->from != nil)
+			m->replyto = strdup(m->from);
+		else if(m->sender != nil)
+			m->replyto = strdup(m->sender);
+		else if(m->unixfrom != nil)
+			m->replyto = strdup(m->unixfrom);
+	}
+	if(m->from == nil && m->unixfrom != nil)
+		m->from = strdup(m->unixfrom);
+
+	free(m->unixfrom);
+	m->unixfrom = nil;
+
 	m->rawbsize = m->rbend - m->rbody;
 	m->cstate |= Cbody;
 }
@@ -598,7 +632,6 @@ void
 parse(Mailbox *mb, Message *m, int addfrom, int justmime)
 {
 	sanemsg(m);
-	assert(m->end - m->start > 0 || (m->mimeflag&Mtrunc) != 0 && m->end - m->start == 0);
 	if((m->cstate & Cheader) == 0)
 		parseheaders(mb, m, addfrom, justmime);
 	parsebody(m, mb);
@@ -874,7 +907,8 @@ ref822(Message *m, Header *h, char*, char *p)
 			free(a[0]);
 			memmove(&a[0], &a[1], (Nref - 1) * sizeof(a[0]));
 			j--;
-		}
+		} else if(a[j] != nil)
+			continue;
 		a[j] = strdup(f[i]);
 	}
 	free(s);
@@ -1015,11 +1049,6 @@ delmessage(Mailbox *mb, Message *m)
 		cachefree(mb, m);
 		idxfree(m);
 	}
-	free(m->unixfrom);
-	free(m->unixheader);
-	free(m->date822);
-	free(m->boundary);
-
 	free(m);
 }
 
@@ -1512,11 +1541,8 @@ mailplumb(Mailbox *mb, Message *m)
 	if(subject == nil)
 		subject = "";
 
-	if(m->from != nil)
-		from = m->from;
-	else if(m->unixfrom != nil)
-		from = m->unixfrom;
-	else
+	from = m->from;
+	if(from == nil)
 		from = "";
 
 	sprint(len, "%lud", m->size);

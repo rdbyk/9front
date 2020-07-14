@@ -66,17 +66,11 @@ static void memglobal(void);
 #define	VPTX(va)		(((ulong)(va))>>12)
 #define	vpd (vpt+VPTX(VPT))
 
-enum {
-	/* PAT entry used for write combining */
-	PATWC	= 7,
-};
-
 void
 mmuinit(void)
 {
 	ulong x, *p;
 	ushort ptr[3];
-	vlong v;
 
 	if(0) print("vpt=%#.8ux vpd=%#p kmap=%#.8ux\n",
 		VPT, vpd, KMAP);
@@ -125,14 +119,6 @@ mmuinit(void)
 
 	taskswitch(PADDR(m->pdb),  (ulong)m + BY2PG);
 	ltr(TSSSEL);
-
-	/* IA32_PAT write combining */
-	if((MACHP(0)->cpuiddx & Pat) != 0
-	&& rdmsr(0x277, &v) != -1){
-		v &= ~(255LL<<(PATWC*8));
-		v |= 1LL<<(PATWC*8);	/* WC */
-		wrmsr(0x277, v);
-	}
 }
 
 /* 
@@ -550,11 +536,16 @@ static void pdbunmap(ulong*, ulong, int);
  * Add a device mapping to the vmap range.
  */
 void*
-vmap(ulong pa, int size)
+vmap(uvlong pa, int size)
 {
 	int osize;
 	ulong o, va;
 	
+	if(pa < BY2PG || size <= 0 || ((pa+size) >> 32) != 0 || size > VMAPSIZE){
+		print("vmap pa=%llux size=%d pc=%#p\n", pa, size, getcallerpc(&pa));
+		return nil;
+	}
+
 	/*
 	 * might be asking for less than a page.
 	 */
@@ -562,17 +553,12 @@ vmap(ulong pa, int size)
 	o = pa & (BY2PG-1);
 	pa -= o;
 	size += o;
-
 	size = ROUND(size, BY2PG);
-	if(pa == 0){
-		print("vmap pa=0 pc=%#p\n", getcallerpc(&pa));
-		return nil;
-	}
 	ilock(&vmaplock);
 	if((va = vmapalloc(size)) == 0 
 	|| pdbmap(MACHP(0)->pdb, pa|PTEUNCACHED|PTEWRITE, va, size) < 0){
 		iunlock(&vmaplock);
-		return 0;
+		return nil;
 	}
 	iunlock(&vmaplock);
 	/* avoid trap on local processor
