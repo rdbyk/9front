@@ -619,8 +619,10 @@ wkeyctl(Window *w, Rune r)
 			n = 1;
 			goto case_Down;
 		case Kdown:
-			n = shiftdown ? 1 : w->maxlines/3;
-			goto case_Down;
+			if(!shiftdown){
+				n = w->maxlines/3;
+				goto case_Down;
+			} else break;
 		case Kscrollonedown:
 			n = mousescrollsize(w->maxlines);
 			if(n <= 0)
@@ -636,8 +638,10 @@ wkeyctl(Window *w, Rune r)
 			n = 1;
 			goto case_Up;
 		case Kup:
-			n = shiftdown ? 1 : w->maxlines/3;
-			goto case_Up;
+			if(!shiftdown){
+				n = w->maxlines/3;
+				goto case_Up;
+			} else break;
 		case Kscrolloneup:
 			n = mousescrollsize(w->maxlines);
 			if(n <= 0)
