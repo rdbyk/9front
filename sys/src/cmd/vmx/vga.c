@@ -88,14 +88,13 @@ struct VGA {
 };
 
 static void
-newpal(int l, int n, int dofree)
+newpal(int l, int n)
 {
 	int x;
 
 	assert(l >= 0 && n + l <= 256);
 	for(; n-- > 0; l++){
-		if(dofree)
-			freeimage(vga.col[l]);
+		freeimage(vga.col[l]);
 		vga.col[l] = allocimage(display, Rect(0, 0, 1, 1), screen->chan, 1, vga.pal[l]);
 		if(vga.col[l] == nil) sysfatal("allocimage: %r");
 	}
@@ -118,7 +117,7 @@ vgasetpal(u8int n, u32int v)
 {
 	qlock(&vga);
 	vga.pal[n] = v;
-	newpal(n, 1, 1);
+	newpal(n, 1);
 	qunlock(&vga);
 }
 
@@ -128,11 +127,10 @@ screeninit(int resize)
 	Point p;
 	int ch;
 
-	if(!resize)
-		freeimage(img);
-	else{
+	if(resize){
+		freeimage(bg);
 		bg = allocimage(display, Rect(0, 0, 1, 1), screen->chan, 1, 0xCCCCCCFF);
-		newpal(0, 256, 0);
+		newpal(0, 256);
 	}
 	p = divpt(addpt(screen->r.min, screen->r.max), 2);
 	picr = (Rectangle){subpt(p, Pt(curmode->w/2, curmode->h/2)), addpt(p, Pt((curmode->w+1)/2, (curmode->h+1)/2))};
@@ -140,12 +138,13 @@ screeninit(int resize)
 	case 0: ch = screen->chan; break;
 	case CHAN1(CMap, 4): case CMAP8:
 		if(vesamode){
-			ch = RGBA32;
+			ch = XRGB32;
 			break;
 		}
 		/* wet floor */
 	default: ch = curmode->chan; break;
 	}
+	freeimage(img);
 	img = allocimage(display, Rect(0, 0, curmode->w, curmode->h), ch, 0, 0);
 	draw(screen, screen->r, bg, nil, ZP);
 }
@@ -168,7 +167,7 @@ vgaio(int isin, u16int port, u32int val, int sz, void *)
 		if((vga.aidx & 0x80) != 0){
 			vmdebug("vga: attribute write %#.2x = %#.2x", vga.aidx & 0x1f, val);
 			vga.attr[vga.aidx & 0x1f] = val;
-			qlock(&vga); newpal(0, 0, 0); qunlock(&vga);
+			qlock(&vga); newpal(0, 0); qunlock(&vga);
 		}else
 			vga.aidx = val & 0x3f;
 		vga.aidx ^= 0x80;
@@ -179,14 +178,14 @@ vgaio(int isin, u16int port, u32int val, int sz, void *)
 		switch(vga.sidx){
 		case 0: vga.seq[vga.sidx] = val & 3; return 0;
 		case 4: vga.seq[vga.sidx] = val & 0xe; return 0;
-		default: vmerror("vga: write to unknown sequencer register %#ux (val=%#ux)", vga.sidx, val); return 0;
+		default: vmdebug("vga: write to unknown sequencer register %#ux (val=%#ux)", vga.sidx, val); return 0;
 		}
 	case 0x3c6: return 0;
 	case 0x3c7: vga.rdidx = val << 2; return 0;
 	case 0x3c8: vga.wdidx = val << 2; return 0;
 	case 0x3c9:
 		vga.pal[vga.wdidx >> 2] = vga.pal[vga.wdidx >> 2] & ~(0xff << (~vga.wdidx << 3 & 24)) | val << 2 + (~vga.wdidx << 3 & 24);
-		qlock(&vga); newpal(vga.wdidx >> 2, 1, 1); qunlock(&vga);
+		qlock(&vga); newpal(vga.wdidx >> 2, 1); qunlock(&vga);
 		vga.wdidx = vga.wdidx + 1 + (vga.wdidx >> 1 & 1) & 0x3ff;
 		return 0;
 	case 0x3ce: vga.gidx = val; return 0;
@@ -195,7 +194,7 @@ vgaio(int isin, u16int port, u32int val, int sz, void *)
 		case 4: vga.graph[vga.gidx] = val & 3; break;
 		case 8: vga.graph[vga.gidx] = val; break;
 		default:
-			vmerror("vga: write to unknown graphics register %#ux (val=%#ux)", vga.gidx, val);
+			vmdebug("vga: write to unknown graphics register %#ux (val=%#ux)", vga.gidx, val);
 		}
 		return 0;
 	case 0x3d4: vga.cidx = val; return 0;
@@ -205,7 +204,7 @@ vgaio(int isin, u16int port, u32int val, int sz, void *)
 			vga.crtc[vga.cidx] = val;
 			return 0;
 		default:
-			vmerror("vga: write to unknown CRTC register %#ux (val=%#ux)", vga.cidx, val);
+			vmdebug("vga: write to unknown CRTC register %#ux (val=%#ux)", vga.cidx, val);
 		}
 		return 0;
 	case 0x103c0: return vga.aidx & 0x3f;
@@ -216,7 +215,7 @@ vgaio(int isin, u16int port, u32int val, int sz, void *)
 		case 0:
 		case 4:
 			return vga.seq[vga.sidx];
-		default: vmerror("vga: read from unknown sequencer register %#ux (val=%#ux)", vga.sidx, val); return 0;
+		default: vmdebug("vga: read from unknown sequencer register %#ux (val=%#ux)", vga.sidx, val); return 0;
 		}
 	case 0x103c6: return 0xff;
 	case 0x103c7: return vga.rdidx >> 2;
@@ -233,7 +232,7 @@ vgaio(int isin, u16int port, u32int val, int sz, void *)
 		case 8:
 			return vga.graph[vga.gidx];
 		default:
-			vmerror("vga: read from unknown graphics register %#ux", vga.gidx);
+			vmdebug("vga: read from unknown graphics register %#ux", vga.gidx);
 			return 0;
 		}
 	case 0x103d4: return vga.cidx;
@@ -242,7 +241,7 @@ vgaio(int isin, u16int port, u32int val, int sz, void *)
 		case 10: case 11: case 12: case 13: case 14: case 15:
 			return vga.crtc[vga.cidx];
 		default:
-			vmerror("vga: read from unknown CRTC register %#ux", vga.cidx);
+			vmdebug("vga: read from unknown CRTC register %#ux", vga.cidx);
 			return 0;
 		}
 	case 0x103ca:
@@ -300,6 +299,8 @@ kbdlayout(char *fn)
 	defkey(Kpgdown, 0x151);
 	defkey(Kins, 0x152);
 	defkey(Kdel, 0x153);
+	defkey(Kmod4, 0x15b);
+	defkey(Kmod4, 0x15c);
 	defkey(Kup, 0x179);
 
 	bp = Bopen(fn, OREAD);
@@ -358,7 +359,7 @@ keyproc(void *)
 			n = read(fd, buf, sizeof(buf)-1);
 			if(n <= 0)
 				sysfatal("read /dev/kbd: %r");
-			kbwatchdog = nsec();
+			kbwatchdog = nanosec();
 			buf[n-1] = 0;
 			buf[n] = 0;
 		}
@@ -373,7 +374,7 @@ keyproc(void *)
 					nkdown[k->code >> 6] |= 1ULL<<(k->code&63);
 					break;
 				}
-			if(k == nil) vmerror("unknown key %d", r);
+			if(k == nil) vmdebug("unknown key %d", r);
 		}
 		if(mousegrab && (nkdown[0]>>29 & 1) != 0 && (nkdown[0]>>56 & 1) != 0){
 			mousegrab = 0;
@@ -431,7 +432,7 @@ mousethread(void *)
 				clicked = m.buttons & 1;
 				break;
 			}
-			if(kbwatchdog != 0 && nsec() - kbwatchdog > 1000ULL*1000*1000)
+			if(kbwatchdog != 0 && nanosec() - kbwatchdog > 1000ULL*1000*1000)
 				mousegrab = 0;
 			gotm = 1;
 			if(!ptinrect(m.xy, grabout)){
@@ -503,7 +504,7 @@ drawtext(void)
 		p += 160;
 	}
 	cp = (vga.crtc[14] << 8 | vga.crtc[15]);
-	if(cp >= sa && cp < sa + 80*25 && (vga.crtc[10] & 0x20) == 0 && nsec() / 500000000 % 2 == 0){
+	if(cp >= sa && cp < sa + 80*25 && (vga.crtc[10] & 0x20) == 0 && nanosec() / 500000000 % 2 == 0){
 		buf[0] = cp437[tfb[cp*2]];
 		attr = tfb[cp*2+1];
 		r.min = Pt((cp - sa) % 80 * 8, (cp - sa) / 80 * 16);
@@ -704,6 +705,7 @@ vgafbparse(char *fbstring)
 		q = vgamodeparse(p, &m);
 		if(p == q || m->w <= 0 || m->h <= 0)
 			no: sysfatal("invalid mode specifier");
+		m->w &= ~7;
 		m->hbytes = chantodepth(m->chan) * m->w + 7 >> 3;
 		m->sz = m->hbytes * m->h;
 		if(m->sz > fbsz) fbsz = m->sz;
@@ -735,13 +737,15 @@ vgafbparse(char *fbstring)
 
 
 void
-vgainit(void)
+vgainit(int new)
 {
 	char buf[512];
 	int i;
 	PCIDev *d;
 	extern void vesainit(void);
 
+	memset(vga.col, 0, sizeof(vga.col));
+	memset(vga.acol, 0, sizeof(vga.acol));
 	if(curmode == nil) return;
 	nextmode = curmode;
 	nexthbytes = curhbytes;
@@ -756,11 +760,11 @@ vgainit(void)
 			sysfatal("got nil ptr for framebuffer");
 	}
 	snprint(buf, sizeof(buf), "-dx %d -dy %d", maxw+50, maxh+50);
-	if(newwindow(buf) < 0 || initdraw(nil, nil, "vmx") < 0)
+	if((new && newwindow(buf) < 0) || initdraw(nil, nil, "vmx") < 0)
 		sysfatal("failed to initialize graphics: %r");
 	screeninit(1);
 	flushimage(display, 1);
-	kbdlayout("/sys/lib/kbmap/us");
+	kbdlayout("/dev/kbmap");
 	mc = initmouse(nil, screen);
 	kbdch = chancreate(sizeof(ulong), 128);
 	mousech = chancreate(sizeof(Mouse), 32);

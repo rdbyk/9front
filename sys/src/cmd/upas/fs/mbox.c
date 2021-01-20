@@ -365,12 +365,12 @@ datesec(Mailbox *mb, Message *m)
 
 	if(m->fileid > 1000000ull<<8)
 		return;
-	if(m->unixfrom && strtotm(m->unixfrom, &tm) >= 0)
-		v = tm2sec(&tm);
+	if(m->unixdate && strtotm(m->unixdate, &tm) >= 0)
+		v = tmnorm(&tm);
 	else if(m->date822 && strtotm(m->date822, &tm) >= 0)
-		v = tm2sec(&tm);
+		v = tmnorm(&tm);
 	else if(rxtotm(m, &tm) >= 0)
-		v = tm2sec(&tm);
+		v = tmnorm(&tm);
 	else{
 		logmsg(gettopmsg(mb, m), "%s:%s: datasec %s %s\n", mb->path,
 			m->whole? m->whole->name: "?",
@@ -404,7 +404,7 @@ parseattachments(Message *m, Mailbox *mb)
 	Message *nm, **l;
 
 	/* if there's a boundary, recurse... */
-	dprint("parseattachments %p %ld bonudary %s\n", m->start, (ulong)(m->end - m->start), m->boundary);
+	dprint("parseattachments %p %ld boundary %s\n", m->start, (ulong)(m->end - m->start), m->boundary);
 	if(m->boundary != nil){
 		p = m->body;
 		nm = nil;
@@ -482,13 +482,14 @@ parseunix(Message *m)
 	char *s, *p;
 
 	m->unixheader = smprint("%.*s", utfnlen(m->start, m->header - m->start), m->start);
-	s = m->start + 5;
+	s = m->unixheader + 5;
 	if((p = strchr(s, ' ')) == nil)
 		return;
 	*p = 0;
 	free(m->unixfrom);
 	m->unixfrom = strdup(s);
 	*p = ' ';
+	m->unixdate = ++p;
 }
 
 void
@@ -572,6 +573,8 @@ parseheaders(Mailbox *mb, Message *m, int addfrom, int justmime)
 			p = "???";
 		m->unixheader = smprint("From %s %Δ\n", p, m->fileid);
 	}
+	m->unixdate = nil;
+
 	m->cstate |= Cheader;
 sanembmsg(mb, m);
 }
@@ -730,6 +733,19 @@ rtrim(char *p)
 }
 
 static char*
+unfold(char *s)
+{
+	char *p, *q;
+
+	q = s;
+	for(p = q; *p != '\0'; p++)
+		if(*p != '\r' && *p != '\n')
+			*q++ = *p;
+	*q = '\0';
+	return s;
+}
+
+static char*
 addr822(char *p, char **ac)
 {
 	int n, c, space, incomment, addrdone, inanticomment, quoted;
@@ -757,7 +773,7 @@ addr822(char *p, char **ac)
 			for(p++; c = *p; p++){
 				if(ac && c == '"')
 					break;
-				if(!addrdone && !incomment)
+				if(!addrdone && !incomment && c != '\r' && c != '\n')
 					ps = sputc(ps, e, c);
 				if(!quoted && *p == '"')
 					break;
@@ -880,7 +896,7 @@ replace822(Message *, Header *h, char*, char *p)
 static char*
 copy822(Message*, Header *h, char*, char *p)
 {
-	return rtrim(strdup(skipwhite(p + h->len)));
+	return rtrim(unfold(strdup(skipwhite(p + h->len))));
 }
 
 static char*
@@ -1531,7 +1547,7 @@ myplumbsend(int fd, Plumbmsg *m)
 static void
 mailplumb(Mailbox *mb, Message *m)
 {
-	char buf[256], dbuf[SHA1dlen*2 + 1], len[10], date[30], *from, *subject;
+	char buf[256], dbuf[SHA1dlen*2 + 1], len[10], date[32], *from, *subject;
 	int ai;
 	Plumbmsg p;
 	Plumbattr a[7];
@@ -1675,29 +1691,4 @@ eprint(char *fmt, ...)
 	va_end(args);
 	syslog(Sflag, logf, "%s", buf);
 	fprint(2, "%s", buf2);
-}
-
-/*
- *  convert an RFC822 date into a Unix style date
- *  for when the Unix From line isn't there (e.g. POP3).
- *  enough client programs depend on having a Unix date
- *  that it's easiest to write this conversion code once, right here.
- *
- *  people don't follow RFC822 particularly closely,
- *  so we use strtotm, which is a bunch of heuristics.
- */
-
-char*
-date822tounix(Message *, char *s)
-{
-	char *p, *q;
-	Tm tm;
-
-	if(strtotm(s, &tm) < 0)
-		return nil;
-
-	p = asctime(&tm);
-	if(q = strchr(p, '\n'))
-		*q = '\0';
-	return strdup(p);
 }

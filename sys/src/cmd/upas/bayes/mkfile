@@ -1,12 +1,9 @@
 </$objtype/mkfile
 
 TARG=addhash bayes msgtok
-HFILES=
-OFILES=
-LIB=
 
-BIN=/$objtype/bin/upas
 </sys/src/cmd/mkmany
+<../mkupas
 
 # msg tokenizer
 $O.regen: regcomp.$O dfa.$O
@@ -29,5 +26,3 @@ $O.msgclass: hash.$O msgdbx.$O
 $O.addhash: hash.$O 
 
 $O.bayes: hash.$O
-
-

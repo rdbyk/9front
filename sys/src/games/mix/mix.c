@@ -668,9 +668,9 @@ mixslrax(int m, int left)
 	rax |= rx & MASK5;
 	rx &= ~MASK5;
 	if(left)
-		rax <<= m;
+		rax <<= m*BITS;
 	else
-		rax >>= m;
+		rax >>= m*BITS;
 	rx |= rax & MASK5;
 	ra |= rax>>5*BITS & MASK5;
 }
@@ -729,14 +729,20 @@ void
 mixmove(int s, int f)
 {
 	int d;
+	u32int *p, *q, *pe;
 
 	if(f == 0)
 		return;
-
+	if(s < 0 || s >= 4000 || s+f < 0 || s+f > 4000)
+		vmerror("Bad src range MOVE %d:%d", s, s+f-1);
 	d = mval(ri[1], 0, MASK2);
-	if(d < 0 || d > 4000)
-		vmerror("Bad address MOVE %d", d);
-	memcpy(cells+d, cells+s, f*sizeof(u32int));
+	if(d < 0 || d >= 4000 || d+f < 0 || d+f > 4000)
+		vmerror("Bad dst range MOVE %d:%d", d, d+f-1);
+	p = cells+d;
+	q = cells+s;
+	pe = p+f;
+	while(p < pe)
+		*p++ = *q++;
 	d += f;
 	d &= MASK2;
 	ri[1] = d < 0 ? -d|SIGNB : d;
@@ -991,9 +997,9 @@ mixvm(int ip, int once)
 			case 0: mixslra(m, 1);	break;
 			case 1: mixslra(m, 0);	break;
 			case 2: mixslrax(m, 1);	break;
-			case 4: mixslrax(m, 0);	break;
-			case 5: mixslc(m);	break;
-			case 6: mixsrc(m);	break;
+			case 3: mixslrax(m, 0);	break;
+			case 4: mixslc(m);	break;
+			case 5: mixsrc(m);	break;
 			}
 			break;
 		case 7:

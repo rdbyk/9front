@@ -184,21 +184,37 @@ mboxesc(Biobuf *in, Biobuf *out, int type)
 int
 appendfolder(Biobuf *b, char *addr, int fd)
 {
-	char *s;
+	char *s, *t;
 	int r;
 	Biobuf bin;
 	Folder *f;
+	Tzone *tz;
 	Tm tm;
 
 	f = getfolder(b);
 	Bseek(f->out, 0, 2);
 	Binit(&bin, fd, OREAD);
+
 	s = Brdstr(&bin, '\n', 0);
-	if(!s || strncmp(s, "From ", 5))
-		Bprint(f->out, "From %s %.28s\n", addr, ctime(f->t));
-	else if(fromtotm(s, &tm) >= 0)
-		f->t = tm2sec(&tm);
-	if(s)
+
+	/* Unix from */
+	if(s != nil && strncmp(s, "From ", 5) == 0
+	&& (t = strchr(s + 5, ' ')) != nil
+	&& tmparse(&tm, Timefmt, t + 1, nil, nil) != nil){
+		f->t = tmnorm(&tm);
+	}else {
+		/*
+		 * Old mailboxes have dates in ctime format,
+		 * which contains ambiguous timezone names.
+		 * Passing in the local timezone has the side
+		 * effect of disambiguating the timezone name
+		 * as local.
+		 */
+		tz = tzload("local");
+		tmtime(&tm, f->t, tz);
+		Bprint(f->out, "From %s %τ\n", addr, tmfmt(&tm, Timefmt));
+	}
+	if(s != nil)
 		Bwrite(f->out, s, strlen(s));
 	free(s);
 	r = mboxesc(&bin, f->out, f->type);

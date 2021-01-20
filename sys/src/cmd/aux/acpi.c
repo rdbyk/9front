@@ -84,6 +84,41 @@ Dfile dfile[] = {
 	{{Qctl},			"ctl",		0666,		ctlread,		ctlwrite},
 };
 
+static char*
+eisaid(void *v)
+{
+	static char id[8];
+	ulong b, l;
+	int i;
+
+	if(amltag(v) == 's')
+		return v;
+	b = amlint(v);
+	for(l = 0, i=24; i>=0; i -= 8, b >>= 8)
+		l |= (b & 0xFF) << i;
+	id[7] = 0;
+	for(i=6; i>=3; i--, l >>= 4)
+		id[i] = "0123456789ABCDEF"[l & 0xF];
+	for(i=2; i>=0; i--, l >>= 5)
+		id[i] = '@' + (l & 0x1F);
+	return id;
+}
+
+static int
+enumec(void *dot, void *)
+{
+	void *p;
+	char *id;
+	id = eisaid(amlval(amlwalk(dot, "^_HID")));
+	if (id == nil || strcmp(id, "PNP0C09") != 0)
+		return 1;
+	p = amlwalk(dot, "^_REG");
+	if (p != nil) {
+		amleval(p, "ii", 0x3, 1, nil);
+	}
+	return 1;
+}
+
 static int
 enumbat(void *dot, void *)
 {
@@ -417,7 +452,7 @@ fsattach(Req *r)
 static void
 usage(void)
 {
-	fprint(2, "usage: aux/acpi [-D] [-d /dev] [-m /mnt/acpi] [-s service]\n");
+	fprint(2, "usage: aux/acpi [-Dp] [-m /mnt/acpi] [-s service]\n");
 	exits("usage");
 }
 
@@ -454,6 +489,11 @@ threadmain(int argc, char **argv)
 	case 's':
 		srv = EARGF(usage());
 		break;
+	case 'p':
+		amldebug++;
+		break;
+	default:
+		usage();
 	}ARGEND
 
 	if((ec = open("/dev/ec", ORDWR)) < 0)
@@ -496,11 +536,12 @@ threadmain(int argc, char **argv)
 	}
 	close(fd);
 
+	amlenum(amlroot, "_HID", enumec, nil);
 	amlenum(amlroot, "_BIF", enumbat, nil);
 	amlenum(amlroot, "_PSL", enumtmp, nil);
 
 	threadpostmountsrv(&fs, srv, mtpt, MREPL);
-	return;
+	threadexits(nil);
 
 fail:
 	fprint(2, "%r\n");

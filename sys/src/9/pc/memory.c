@@ -250,6 +250,24 @@ upaalloc(uvlong pa, ulong size, ulong align)
 	return memmapalloc(pa, size, align, MemUPA);
 }
 
+uvlong
+upaallocwin(uvlong pa, ulong win, ulong size, ulong align)
+{
+	uvlong a, base, top = pa + win;
+
+	for(base = memmapnext(-1, MemUPA); base != -1 && base < top; base = memmapnext(base, MemUPA)){
+		if(base < pa){
+			if(pa >= base + memmapsize(base, 0))
+				continue;
+			base = pa;
+		}
+		a = upaalloc(base, size, align);
+		if(a != -1)
+			return a;
+	}
+	return -1ULL;
+}
+
 void
 upafree(uvlong pa, ulong size)
 {
@@ -302,6 +320,27 @@ umbexclude(void)
 	}
 }
 
+static void
+mtrrexclude(int type, char *expect)
+{
+	uvlong base, top, next, pa;
+	char *attr;
+
+	for(base = memmapnext(-1, type); base != -1; base = memmapnext(base, type)){
+		top = base + memmapsize(base, 0);
+		for(pa = base; pa < top; pa = next){
+			next = top;
+			attr = mtrrattr(pa, &next);
+			if(attr != nil && strcmp(attr, expect) != 0){
+				if(next > top)
+					next = top;
+				memmapadd(pa, next - pa, MemReserved);
+			}
+			base = pa;
+		}
+	}
+}
+
 static int
 e820scan(void)
 {
@@ -344,6 +383,9 @@ e820scan(void)
 		}
 	}
 
+	/* RAM needs to be writeback */
+	mtrrexclude(MemRAM, "wb");
+
 	for(base = memmapnext(-1, MemRAM); base != -1; base = memmapnext(base, MemRAM)){
 		size = memmapsize(base, BY2PG) & ~(BY2PG-1);
 		if(size != 0)
@@ -358,6 +400,7 @@ ramscan(uintptr pa, uintptr top, uintptr chunk)
 {
 	ulong save, pat, seed, *v, *k0;
 	int i, n, w;
+	char *attr;
 
 	pa += chunk-1;
 	pa &= ~(chunk-1);
@@ -371,6 +414,10 @@ ramscan(uintptr pa, uintptr top, uintptr chunk)
 
 	pat = 0x12345678UL;
 	for(; pa < top; pa += chunk){
+		attr = mtrrattr(pa, nil);
+		if(attr != nil && strcmp(attr, "wb") != 0)
+			goto Skip;
+
 		/* write pattern */
 		seed = pat;
 		if((v = vmap(pa, chunk)) == nil)
@@ -402,6 +449,7 @@ ramscan(uintptr pa, uintptr top, uintptr chunk)
 	Bad:
 		vunmap(v, chunk);
 
+	Skip:
 		if(pa+chunk <= 16*MB)
 			memmapadd(pa, chunk, MemUMB);
 
@@ -470,6 +518,12 @@ meminit0(void)
 	 */
 	if(e820scan() < 0)
 		ramscan(MemMin, -((uintptr)MemMin), 4*MB);
+
+	/*
+	 * Exclude UMB's and UPA's with unusual cache attributes.
+	 */
+	mtrrexclude(MemUMB, "uc");
+	mtrrexclude(MemUPA, "uc");
 }
 
 /*

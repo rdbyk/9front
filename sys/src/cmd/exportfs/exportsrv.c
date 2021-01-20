@@ -5,8 +5,6 @@
 #define Extern	extern
 #include "exportfs.h"
 
-extern char *netdir, *local, *remote;
-
 char Ebadfid[] = "Bad fid";
 char Enotdir[] = "Not a directory";
 char Edupfid[] = "Fid already in use";
@@ -15,7 +13,6 @@ char Exmnt[] = "Cannot .. past mount point";
 char Emip[] = "Mount in progress";
 char Enopsmt[] = "Out of pseudo mount points";
 char Enomem[] = "No memory";
-char Eversion[] = "Bad 9P2000 version";
 char Ereadonly[] = "File system read only";
 char Enoprocs[] = "Out of processes";
 
@@ -35,13 +32,10 @@ Xversion(Fsrpc *t)
 	if(t->work.msize > messagesize)
 		t->work.msize = messagesize;
 	messagesize = t->work.msize;
-	if(strncmp(t->work.version, "9P2000", 6) != 0){
-		reply(&t->work, &rhdr, Eversion);
-		putsbuf(t);
-		return;
-	}
-	rhdr.version = "9P2000";
 	rhdr.msize = t->work.msize;
+	rhdr.version = "9P2000";
+	if(strncmp(t->work.version, "9P", 2) != 0)
+		rhdr.version = "unknown";
 	reply(&t->work, &rhdr, 0);
 	putsbuf(t);
 }
@@ -497,12 +491,6 @@ slave(Fsrpc *f)
 			return;
 
 		case 0:
-			if (local[0] != '\0')
-				if (netdir[0] != '\0')
-					procsetname("%s: %s -> %s", netdir, 
-						local, remote);
-				else
-					procsetname("%s -> %s", local, remote);
 			blockingslave(m);
 			_exits(0);
 

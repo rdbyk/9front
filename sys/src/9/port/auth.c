@@ -97,13 +97,12 @@ sysfauth(va_list list)
 		nexterror();
 	}
 
-	fd = newfd(ac);
+	/* always mark it close on exec */
+	fd = newfd(ac, OCEXEC);
 	if(fd < 0)
 		error(Enofd);
 	poperror();	/* ac */
 
-	/* always mark it close on exec */
-	ac->flag |= CCEXEC;
 	return (uintptr)fd;
 }
 
@@ -117,7 +116,7 @@ userwrite(char *a, int n)
 {
 	if(n!=4 || strncmp(a, "none", 4)!=0)
 		error(Eperm);
-	procsetuser(up, "none");
+	procsetuser("none");
 	return n;
 }
 
@@ -144,7 +143,7 @@ hostownerwrite(char *a, int n)
 	srvrenameuser(eve, buf);
 	shrrenameuser(eve, buf);
 	kstrdup(&eve, buf);
-	procsetuser(up, buf);
+	procsetuser(buf);
 	return n;
 }
 

@@ -151,7 +151,7 @@ enum {
 	Ocfld, Ocfld0, Ocfld1, Ocfld2, Ocfld4, Ocfld8,
 	Oif, Oelse, Owhile, Obreak, Oret, Ocall, 
 	Ostore, Oderef, Osize, Oref, Ocref, Ocat,
-	Oacq, Orel, Ostall, Osleep, Oload, Ounload,
+	Oacq, Osignal, Orel, Ostall, Osleep, Oload, Ounload,
 	Otodec, Otohex, Otoint,
 };
 
@@ -1524,7 +1524,7 @@ cmp1(void *a, void *b)
 		tag = TAG(a);
 		if(b == nil || TAG(b) != tag)
 			b = copy(tag, b);
-		if(TAG(b) != tag)
+		if(b == nil || TAG(b) != tag)
 			return -1;	/* botch */
 		switch(tag){
 		default:
@@ -2072,6 +2072,7 @@ static Op optab[] = {
 	[Ocat]		"Concatenate",		"**@",		evalcat,
 
 	[Oacq]		"Acquire",		"@2",		evalnop,
+	[Osignal]	"Signal",		"@",		evalnop,
 	[Orel]		"Release",		"@",		evalnop,
 	[Ostall]	"Stall",		"i",		evalstall,
 	[Osleep]	"Sleep",		"i",		evalsleep,
@@ -2123,7 +2124,7 @@ static uchar octab2[] = {
 /* 08 */	Obad,	Obad,	Obad,	Obad,	Obad,	Obad,	Obad,	Obad,
 /* 10 */	Obad,	Obad,	Ocref,	Ocfld,	Obad,	Obad,	Obad,	Obad,
 /* 18 */	Obad,	Obad,	Obad,	Obad,	Obad,	Obad,	Obad,	Obad,
-/* 20 */	Oload,	Ostall,	Osleep,	Oacq,	Obad,	Obad,	Obad,	Orel,
+/* 20 */	Oload,	Ostall,	Osleep,	Oacq,	Osignal,Obad,	Obad,	Orel,
 /* 28 */	Obad,	Obad,	Ounload,Obad,	Obad,	Obad,	Obad,	Obad,
 /* 30 */	Obad,	Odebug,	Obad,	Obad,	Obad,	Obad,	Obad,	Obad,
 /* 38 */	Obad,	Obad,	Obad,	Obad,	Obad,	Obad,	Obad,	Obad,

@@ -125,7 +125,7 @@ enum
 	COPEN	= 0x0001,		/* for i/o */
 	CMSG	= 0x0002,		/* the message channel for a mount */
 /*rsc	CCREATE	= 0x0004,		/* permits creation if c->mnt */
-	CCEXEC	= 0x0008,		/* close on exec */
+	CCEXEC	= 0x0008,		/* close on exec (per file descriptor) */
 	CFREE	= 0x0010,		/* not in use */
 	CRCLOSE	= 0x0020,		/* remove on close */
 	CCACHE	= 0x0080,		/* client cache */
@@ -474,7 +474,6 @@ struct Pgrp
 	Ref;
 	RWlock	ns;			/* Namespace n read/one write lock */
 	int	noattach;
-	ulong	pgrpid;
 	Mhead	*mnthash[MNTHASH];
 };
 
@@ -509,6 +508,7 @@ struct Fgrp
 	Ref;
 	Lock;
 	Chan	**fd;
+	uchar	*flag;			/* per file-descriptor flags (CCEXEC) */
 	int	nfd;			/* number allocated */
 	int	maxfd;			/* highest fd in use */
 	int	exceed;			/* debugging */
@@ -686,7 +686,7 @@ struct Proc
 
 	uvlong	kentry;		/* Kernel entry time stamp (for profiling) */
 	/*
-	 * pcycles: cycles spent in this process (updated on procsave/restore)
+	 * pcycles: cycles spent in this process (updated on procswitch)
 	 * when this is the current proc and we're in the kernel
 	 * (procrestores outnumber procsaves by one)
 	 * the number of cycles spent in the proc is pcycles + cycles()

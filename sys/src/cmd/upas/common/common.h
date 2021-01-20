@@ -20,6 +20,7 @@ enum{
 	Fstored		= 1<<6, /* S */
 	Nflags		= 7,
 };
+#define Timefmt "WW MMM _D hh:mm:ss ?Z YYYY"
 
 /*
  * flag.c
@@ -51,9 +52,6 @@ char*	ffoldername(char*, char*, char*);
 /* fmt.c */
 void	mailfmtinstall(void);	/* 'U' = 2047fmt */
 #pragma varargck	type	"U"	char*
-
-/* totm.c */
-int	fromtotm(char*, Tm*);
 
 /* a pipe between parent and child*/
 typedef struct{

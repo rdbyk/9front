@@ -556,6 +556,12 @@ cunique(Chan *c)
 		c = nc;
 	}
 
+	if(c->umh != nil){	//BUG
+		print("cunique umh != nil from %#p\n", getcallerpc(&c));
+		putmhead(c->umh);
+		c->umh = nil;
+	}
+
 	return c;
 }
 
@@ -1094,11 +1100,6 @@ walk(Chan **cp, char **names, int nnames, int nomount, int *nerror)
 	}
 	putmhead(mh);
 	c = cunique(c);
-	if(c->umh != nil){	//BUG
-		print("walk umh\n");
-		putmhead(c->umh);
-		c->umh = nil;
-	}
 
 	pathclose(c->path);
 	c->path = path;
@@ -1410,8 +1411,13 @@ namec(char *aname, int amode, int omode, ulong perm)
 		m = nil;
 		if(!nomount)
 			domount(&c, &m, nil);
-		putmhead(c->umh);
+		if(waserror()){
+			putmhead(m);
+			nexterror();
+		}
+		c = cunique(c);
 		c->umh = m;
+		poperror();
 		break;
 
 	case Aaccess:
@@ -1428,9 +1434,13 @@ namec(char *aname, int amode, int omode, ulong perm)
 		m = nil;
 		if(!nomount)
 			domount(&c, &m, &path);
-
+		if(waserror()){
+			putmhead(m);
+			nexterror();
+		}
 		/* our own copy to open or remove */
 		c = cunique(c);
+		poperror();
 
 		/* now it's our copy anyway, we can put the name back */
 		pathclose(c->path);
@@ -1448,11 +1458,6 @@ namec(char *aname, int amode, int omode, ulong perm)
 
 		case Aopen:
 		case Acreate:
-			if(c->umh != nil){
-				print("cunique umh Open\n");
-				putmhead(c->umh);
-				c->umh = nil;
-			}
 			/* only save the mount head if it's a multiple element union */
 			if(m != nil && m->mount != nil && m->mount->next != nil)
 				c->umh = m;
@@ -1463,9 +1468,6 @@ namec(char *aname, int amode, int omode, ulong perm)
 			saveregisters();
 
 			c = devtab[c->type]->open(c, omode&~OCEXEC);
-
-			if(omode & OCEXEC)
-				c->flag |= CCEXEC;
 			if(omode & ORCLOSE)
 				c->flag |= CRCLOSE;
 			break;
@@ -1566,11 +1568,9 @@ namec(char *aname, int amode, int omode, ulong perm)
 			incref(cnew->path);
 
 			cnew = devtab[cnew->type]->create(cnew, e.elems[e.nelems-1], omode&~(OEXCL|OCEXEC), perm);
-			poperror();
-			if(omode & OCEXEC)
-				cnew->flag |= CCEXEC;
 			if(omode & ORCLOSE)
 				cnew->flag |= CRCLOSE;
+			poperror();
 			putmhead(m);
 			cclose(c);
 			c = cnew;

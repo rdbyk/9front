@@ -1,7 +1,7 @@
 </$objtype/mkfile
-<../mkupas
 
-RCFILES=isspam\
+RCFILES=\
+	isspam\
 	msgcat\
 	spam\
 	tfmt\
@@ -22,13 +22,9 @@ safeinstallall:V: install
 clean:Q:
 	;
 nuke:V:
-	rm $BIN/^($RCFILES)
-
-UPDATE=$RCFILES
-
-update:V:
-	update $UPDATEFLAGS $UPDATE
+	rm -f $BIN/^($RCFILES)
 
 $BIN/%: %.rc
 	cp $stem.rc $BIN/$stem
 
+<../mkupas

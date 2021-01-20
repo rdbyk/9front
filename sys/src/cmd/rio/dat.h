@@ -186,6 +186,7 @@ struct Window
 	uchar		deleted;
 	uchar		mouseopen;
 	uchar		kbdopen;
+	uchar		winnameread;
 	char			*label;
 	char			*dir;
 };
@@ -228,6 +229,7 @@ void		wresize(Window*, Image*);
 void		wscrdraw(Window*);
 void		wscroll(Window*, int);
 void		wselect(Window*);
+void		wsend(Window*);
 void		wsendctlmesg(Window*, int, Rectangle, void*);
 void		wsetcursor(Window*, int);
 void		wsetname(Window*);

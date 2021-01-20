@@ -4,6 +4,7 @@
 #include "dat.h"
 #include "fns.h"
 #include "io.h"
+#include "../port/pci.h"
 #include "../port/error.h"
 #include "../port/audioif.h"
 
@@ -461,10 +462,9 @@ waitup32(Ctlr *ctlr, int reg, uint mask, uint set)
 static int
 hdacmd(Ctlr *ctlr, uint request, uint reply[2])
 {
-	uint rp, wp;
-	uint re;
-	int wait;
-	
+	uint rp, wp, re;
+	int wait, ret;
+
 	re = csr16(ctlr, Rirbwp);
 	rp = csr16(ctlr, Corbrp);
 	wp = (csr16(ctlr, Corbwp) + 1) % ctlr->corbsize;
@@ -475,15 +475,22 @@ hdacmd(Ctlr *ctlr, uint request, uint reply[2])
 	ctlr->corb[wp] = request;
 	coherence();
 	csr16(ctlr, Corbwp) = wp;
+
+	ret = 0;
 	for(wait=0; wait < Maxrirbwait; wait++){
 		if(csr16(ctlr, Rirbwp) != re){
 			re = (re + 1) % ctlr->rirbsize;
 			memmove(reply, &ctlr->rirb[re*2], 8);
-			return 1;
+			ret = 1;
+			break;
 		}
 		microdelay(1);
 	}
-	return 0;
+
+	/* reset intcnt for qemu */
+	csr8(ctlr, Rirbsts) = Rirbrover|Rirbrint;
+
+	return ret;
 }
 
 static int
@@ -1163,6 +1170,7 @@ writering(Ring *r, uchar *p, long n)
 static int
 streamalloc(Ctlr *ctlr, Stream *s, int num)
 {
+	u64int pa;
 	Ring *r;
 	int i;
 
@@ -1174,8 +1182,9 @@ streamalloc(Ctlr *ctlr, Stream *s, int num)
 		return -1;
 	}
 	for(i=0; i<Nblocks; i++){
-		s->blds[i].addrlo = PADDR(r->buf) + i*Blocksize;
-		s->blds[i].addrhi = 0;
+		pa = PCIWADDR(r->buf) + i*Blocksize;
+		s->blds[i].addrlo = pa;
+		s->blds[i].addrhi = pa >> 32;
 		s->blds[i].len = Blocksize;
 		s->blds[i].flags = 0x01;	/* interrupt on completion */
 	}
@@ -1204,8 +1213,9 @@ streamalloc(Ctlr *ctlr, Stream *s, int num)
 	csr16(ctlr, Sdfmt+s->sdctl) = s->afmt;
 
 	/* program stream DMA & parms */
-	csr32(ctlr, Sdbdplo+s->sdctl) = PADDR(s->blds);
-	csr32(ctlr, Sdbdphi+s->sdctl) = 0;
+	pa = PCIWADDR(s->blds);
+	csr32(ctlr, Sdbdplo+s->sdctl) = pa;
+	csr32(ctlr, Sdbdphi+s->sdctl) = pa >> 32;
 	csr32(ctlr, Sdcbl+s->sdctl) = r->nbuf;
 	csr16(ctlr, Sdlvi+s->sdctl) = (Nblocks - 1) & 0xff;
 
@@ -1567,6 +1577,9 @@ hdainterrupt(Ureg *, void *arg)
 		}
 		wakeup(&r->r);
 	}
+	if(sts & Cis){
+		csr8(ctlr, Rirbsts) = Rirbrover|Rirbrint;
+	}
 	iunlock(ctlr);
 }
 
@@ -1660,6 +1673,7 @@ hdastart(Ctlr *ctlr)
 {
 	static int cmdbufsize[] = { 2, 16, 256, 2048 };
 	int n, size;
+	u64int pa;
 	uint cap;
 	
 	/* reset controller */
@@ -1711,8 +1725,9 @@ hdastart(Ctlr *ctlr)
 	csr8(ctlr, Rirbsts) = csr8(ctlr, Rirbsts);
 	
 	/* setup CORB */
-	csr32(ctlr, Corblbase) = PADDR(ctlr->corb);
-	csr32(ctlr, Corbubase) = 0;
+	pa = PCIWADDR(ctlr->corb);
+	csr32(ctlr, Corblbase) = pa;
+	csr32(ctlr, Corbubase) = pa >> 32;
 	csr16(ctlr, Corbwp) = 0;
 	csr16(ctlr, Corbrp) = Corbptrrst;
 	waitup16(ctlr, Corbrp, Corbptrrst, Corbptrrst);
@@ -1722,14 +1737,20 @@ hdastart(Ctlr *ctlr)
 	waitup8(ctlr, Corbctl, Corbdma, Corbdma);
 	
 	/* setup RIRB */
-	csr32(ctlr, Rirblbase) = PADDR(ctlr->rirb);
-	csr32(ctlr, Rirbubase) = 0;
+	pa = PCIWADDR(ctlr->rirb);
+	csr32(ctlr, Rirblbase) = pa;
+	csr32(ctlr, Rirbubase) = pa >> 32;
 	csr16(ctlr, Rirbwp) = Rirbptrrst;
-	csr8(ctlr, Rirbctl) = Rirbdma;
+
+	/*
+	 * qemu requires interrupt handshake,
+	 * even tho we just poll the irb write
+	 * pointer for command completion.
+	 */
+	csr16(ctlr, Rintcnt) = 1;
+	csr8(ctlr, Rirbctl) = Rirbdma|Rirbint;
+
 	waitup8(ctlr, Rirbctl, Rirbdma, Rirbdma);
-	
-	/* enable interrupts */
-	csr32(ctlr, Intctl) |= Gie | Cie;
 	
 	return 0;
 }
@@ -1779,6 +1800,7 @@ hdamatch(Pcidev *p)
 
 		case (0x1022 << 16) | 0x780d:	/* AMD FCH Azalia Controller */
 		case (0x1022 << 16) | 0x1457:	/* AMD Family 17h (Models 00h-0fh) HD Audio Controller */
+		case (0x1022 << 16) | 0x1487:	/* AMD Starship/Matisse HD Audio Controller */
 		case (0x1022 << 16) | 0x15e3:	/* AMD Raven HD Audio Controller */
 
 		case (0x15ad << 16) | 0x1977:	/* Vmware */
@@ -1934,6 +1956,9 @@ hdareset1(Audio *adev, Ctlr *ctlr)
 	adev->ctl = hdactl;
 	
 	intrenable(irq, hdainterrupt, adev, tbdf, "hda");
+	
+	/* enable interrupts */
+	csr32(ctlr, Intctl) |= Gie | Cie;
 
 	ctlr->q = qopen(256, 0, 0, 0);
 

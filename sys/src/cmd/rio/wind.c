@@ -102,16 +102,19 @@ wresize(Window *w, Image *i)
 	frinit(w, r, w->font, w->i, cols);
 	wsetcols(w, 1);
 	w->maxtab = maxtab*stringwidth(w->font, "0");
-	r = insetrect(w->i->r, Selborder);
-	draw(w->i, r, cols[BACK], nil, w->entire.min);
-	wfill(w);
-	wsetselect(w, w->q0, w->q1);
-	wscrdraw(w);
+	if(!w->mouseopen || !w->winnameread){
+		r = insetrect(w->i->r, Selborder);
+		draw(w->i, r, cols[BACK], nil, w->entire.min);
+		wfill(w);
+		wsetselect(w, w->q0, w->q1);
+		wscrdraw(w);
+	}
 	wborder(w, Selborder);
 	flushimage(display, 1);
 	wsetname(w);
 	w->topped = ++topped;
 	w->resized = TRUE;
+	w->winnameread = FALSE;
 	w->mouse.counter++;
 	w->wctlready = 1;
 }
@@ -127,6 +130,7 @@ wrefresh(Window *w)
 		wborder(w, Unselborder);
 	r = insetrect(w->i->r, Selborder);
 	draw(w->i, r, w->cols[BACK], nil, w->entire.min);
+	wfill(w);
 	w->ticked = 0;
 	if(w->p0 > 0)
 		frdrawsel(w, frptofchar(w, 0), 0, w->p0, 0);
@@ -410,7 +414,7 @@ winctl(void *arg)
 			t = "notcurrent";
 			if(w == input)
 				t = "current";
-			pair.ns = snprint(pair.s, pair.ns+1, "%11d %11d %11d %11d 11%s 11%s ",
+			pair.ns = snprint(pair.s, pair.ns+1, "%11d %11d %11d %11d %11s %11s ",
 				w->i->r.min.x, w->i->r.min.y, w->i->r.max.x, w->i->r.max.y, t, s);
 			send(crm.c2, &pair);
 			continue;
@@ -615,10 +619,8 @@ wkeyctl(Window *w, Rune r)
 			n = 1;
 			goto case_Down;
 		case Kdown:
-			if(!shiftdown){
-				n = w->maxlines/3;
-				goto case_Down;
-			} else break;
+			n = shiftdown ? 1 : w->maxlines/3;
+			goto case_Down;
 		case Kscrollonedown:
 			n = mousescrollsize(w->maxlines);
 			if(n <= 0)
@@ -634,10 +636,8 @@ wkeyctl(Window *w, Rune r)
 			n = 1;
 			goto case_Up;
 		case Kup:
-			if(!shiftdown){
-				n = w->maxlines/3;
-				goto case_Up;
-			} else break;
+			n = shiftdown ? 1 : w->maxlines/3;
+			goto case_Up;
 		case Kscrolloneup:
 			n = mousescrollsize(w->maxlines);
 			if(n <= 0)
@@ -664,7 +664,7 @@ wkeyctl(Window *w, Rune r)
 			}
 			return;
 		case Khome:
-			wsetorigin(w, 0, TRUE);
+			wshow(w, 0);
 			return;
 		case Kend:
 			wshow(w, w->nr);
@@ -787,7 +787,7 @@ void
 wrepaint(Window *w)
 {
 	wsetcols(w, w == input);
-	if(!w->mouseopen)
+	if(!w->mouseopen || !w->winnameread)
 		frredraw(w);
 	if(w == input)
 		wborder(w, Selborder);
@@ -1216,7 +1216,7 @@ wctlmesg(Window *w, int m, Rectangle r, void *p)
 		flushimage(display, 1);
 		break;
 	case Refresh:
-		if(w->i==nil || Dx(w->screenr)<=0 || w->mouseopen)
+		if(w->i==nil || Dx(w->screenr)<=0)
 			break;
 		wrefresh(w);
 		flushimage(display, 1);
@@ -1272,7 +1272,6 @@ wctlmesg(Window *w, int m, Rectangle r, void *p)
 		free(w->r);
 		free(w->dir);
 		free(w->label);
-		histfree(w);
 		free(w);
 		break;
 	}
@@ -1453,7 +1452,7 @@ wclosewin(Window *w)
 void
 wsetpid(Window *w, int pid, int dolabel)
 {
-	char buf[64];
+	char buf[32];
 	int ofd;
 
 	ofd = w->notefd;
@@ -1461,11 +1460,11 @@ wsetpid(Window *w, int pid, int dolabel)
 		w->notefd = -1;
 	else {
 		if(dolabel){
-			snprint(buf, sizeof(buf), "rc %d", pid);
+			snprint(buf, sizeof(buf), "rc %lud", (ulong)pid);
 			free(w->label);
 			w->label = estrdup(buf);
 		}
-		snprint(buf, sizeof(buf), "/proc/%d/notepg", pid);
+		snprint(buf, sizeof(buf), "/proc/%lud/notepg", (ulong)pid);
 		w->notefd = open(buf, OWRITE|OCEXEC);
 	}
 	if(ofd >= 0)
@@ -1892,4 +1891,24 @@ whist(Window *w, int *ip)
 
 	*ip = p - res;
 	return res;
+}
+
+void
+wsend(Window *w)
+{
+	getsnarf();
+	wsnarf(w);
+	if(nsnarf == 0)
+		return;
+	if(w->rawing){
+		waddraw(w, snarf, nsnarf);
+		if(snarf[nsnarf-1]!='\n' && snarf[nsnarf-1]!='\004')
+			waddraw(w, L"\n", 1);
+	}else{
+		winsert(w, snarf, nsnarf, w->nr);
+		if(snarf[nsnarf-1]!='\n' && snarf[nsnarf-1]!='\004')
+			winsert(w, L"\n", 1, w->nr);
+	}
+	wsetselect(w, w->nr, w->nr);
+	wshow(w, w->nr);
 }

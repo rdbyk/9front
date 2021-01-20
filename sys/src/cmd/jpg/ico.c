@@ -13,8 +13,8 @@ struct Icon
 {
 	Icon	*next;
 
-	uchar	w;		/* icon width */
-	uchar	h;		/* icon height */
+	ushort	w;		/* icon width */
+	ushort	h;		/* icon height */
 	ushort	ncolor;		/* number of colors */
 	ushort	nplane;		/* number of bit planes */
 	ushort	bits;		/* bits per pixel */
@@ -268,6 +268,11 @@ Bgeticon(Biobuf *b, Icon *icon)
 	icon->h = getl(buf+8)>>1;
 	icon->nplane = gets(buf+12);
 	icon->bits = gets(buf+14);
+
+	if(icon->w == 0)
+		icon->w = 256;
+	if(icon->h == 0)
+		icon->h = 256;
 
 	/* limit what we handle */
 	switch(icon->bits){
@@ -530,6 +535,8 @@ eresized(int new)
 	r.max.x = screen->r.min.x;
 	r.min.y = screen->r.min.y + font->height + 2*BORDER;
 	for(icon = h.first; icon != nil; icon = icon->next){
+		if(icon->img == nil)
+			continue;
 		r.min.x = r.max.x + BORDER;
 		r.max.x = r.min.x + Dx(icon->img->r);
 		r.max.y = r.min.y + Dy(icon->img->r);

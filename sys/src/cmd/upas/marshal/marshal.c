@@ -140,6 +140,7 @@ int attachfailed;
 char lastchar;
 char *replymsg;
 
+#define Rfc822fmt	"WW, DD MMM YYYY hh:mm:ss Z"
 enum
 {
 	Ok = 0,
@@ -192,7 +193,7 @@ void
 main(int argc, char **argv)
 {
 	int ccargc, bccargc, flags, fd, noinput, headersrv;
-	char *subject, *type, *boundary;
+	char *subject, *type, *boundary, *saveto;
 	char *ccargv[32], *bccargv[32];
 	Addr *to, *cc, *bcc;
 	Attach *first, **l, *a;
@@ -206,8 +207,10 @@ main(int argc, char **argv)
 	l = &first;
 	type = nil;
 	hdrstring = nil;
+	saveto = nil;
 	ccargc = bccargc = 0;
 
+	tmfmtinstall();
 	quotefmtinstall();
 	fmtinstall('Z', doublequote);
 	fmtinstall('U', rfc2047fmt);
@@ -241,6 +244,9 @@ main(int argc, char **argv)
 		break;
 	case 'F':
 		Fflag = 1;		/* file message */
+		break;
+	case 'S':
+		saveto = EARGF(usage());
 		break;
 	case 'n':			/* no standard input */
 		nflag = 1;
@@ -334,7 +340,9 @@ main(int argc, char **argv)
 		}
 	}
 
-	fd = sendmail(to, cc, bcc, &pid, Fflag ? argv[0] : nil);
+	if(Fflag)
+		saveto=argc>0?argv[0]:to->v;
+	fd = sendmail(to, cc, bcc, &pid, saveto);
 	if(fd < 0)
 		sysfatal("execing sendmail: %r\n:");
 	if(xflag || lbflag || dflag){
@@ -792,29 +800,13 @@ attachment(Attach *a, Biobuf *out)
 	Bterm(f);
 }
 
-char *ascwday[] =
-{
-	"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
-};
-
-char *ascmon[] =
-{
-	"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-	"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-};
-
 int
 printdate(Biobuf *b)
 {
-	int tz;
 	Tm *tm;
 
 	tm = localtime(time(0));
-	tz = (tm->tzoff/3600)*100 + (tm->tzoff/60)%60;
-
-	return Bprint(b, "Date: %s, %d %s %d %2.2d:%2.2d:%2.2d %s%.4d\n",
-		ascwday[tm->wday], tm->mday, ascmon[tm->mon], 1900 + tm->year,
-		tm->hour, tm->min, tm->sec, tz>=0?"+":"", tz);
+	return Bprint(b, "Date: %τ\n", tmfmt(tm, Rfc822fmt));
 }
 
 int
@@ -1003,16 +995,10 @@ tee(int in, int out1, int out2)
 int
 printunixfrom(int fd)
 {
-	int tz;
 	Tm *tm;
 
 	tm = localtime(time(0));
-	tz = (tm->tzoff/3600)*100 + (tm->tzoff/60)%60;
-
-	return fprint(fd, "From %s %s %s %d %2.2d:%2.2d:%2.2d %s%.4d %d\n",
-		user,
-		ascwday[tm->wday], ascmon[tm->mon], tm->mday,
-		tm->hour, tm->min, tm->sec, tz>=0?"+":"", tz, 1900 + tm->year);
+	return fprint(fd, "From %s %τ\n", user, tmfmt(tm, Rfc822fmt));
 }
 
 char *specialfile[] =
@@ -1099,10 +1085,8 @@ sendmail(Addr *to, Addr *cc, Addr *bcc, int *pid, char *rcvr)
 				break;
 			case 0:
 				close(pfd[0]);
-				b = 0;
 				/* BOTCH; "From " time gets changed */
-				if(rcvr)
-					b = openfolder(foldername(nil, user, rcvr), time(0));
+				b = openfolder(foldername(nil, user, rcvr), time(0));
 				fd = b? Bfildes(b): -1;
 				printunixfrom(fd);
 				tee(0, pfd[1], fd);

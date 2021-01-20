@@ -2,7 +2,7 @@
 #include "send.h"
 #include <regexp.h>
 #include "../smtp/smtp.h"
-#include "../smtp/y.tab.h"
+#include "../smtp/rfc822.tab.h"
 
 enum{
 	VMLIMIT	= 64*1024,
@@ -21,10 +21,12 @@ static String*	getaddr(Node *p);
 int
 default_from(message *mp)
 {
-	char *cp, *lp;
+	char *cp, *lp, now[128];
+	Tm tm;
 
 	cp = getenv("upasname");
 	lp = getlog();
+	snprint(now, sizeof(now), "%τ", thedate(&tm));
 	if(lp == nil){
 		free(cp);
 		return -1;
@@ -34,7 +36,7 @@ default_from(message *mp)
 	else
 		s_append(mp->sender, lp);
 	free(cp);
-	s_append(mp->date, thedate());
+	s_append(mp->date, now);
 	return 0;
 }
 

@@ -268,13 +268,10 @@ long
 internaltounix(char *s)
 {
 	Tm tm;
-	if(strlen(s) < 20 || s[2] != '-' || s[6] != '-')
+
+	if(tmparse(&tm, "?DD-?MM-YYYY hh:mm:ss ?Z", s, nil, nil) == nil)
 		return -1;
-	s[2] = ' ';
-	s[6] = ' ';
-	if(strtotm(s, &tm) == -1)
-		return -1;
-	return tm2sec(&tm);
+	return tmnorm(&tm);
 }
 	
 static char*
@@ -979,10 +976,9 @@ again:
 				m->imapuid = strtoull(m->idxaux, 0, 0);
 			c = vcmp(f[i].uid, m->imapuid);
 		}
-		idprint(imap, "consider %U and %U -> %d\n", i<n? f[i].uid: 0, m? m->imapuid: 1, c);
 		if(c < 0){
 			/* new message */
-			idprint(imap, "new: %U (%U)\n", f[i].uid, m? m->imapuid: 0);
+			idprint(imap, "new: %U (%U)\n", f[i].uid, m ? m->imapuid: 0);
 			if(f[i].sizes == 0 || f[i].sizes > Maxmsg){
 				idprint(imap, "skipping bad size: %lud\n", f[i].sizes);
 				i++;
@@ -1006,8 +1002,10 @@ again:
 			m->deleted = Disappear;
 			ll = &m->next;
 		}else{
-			if((m->flags & ~Frecent) != (f[i].flags & ~Frecent))
+			if((m->flags & ~Frecent) != (f[i].flags & ~Frecent)){
+				idprint(imap, "modified: %d != %d\n", m->flags, f[i].flags);
 				m->cstate |= Cmod;
+			}
 			m->flags = f[i].flags;
 			ll = &m->next;
 			i++;

@@ -22,6 +22,7 @@ PORT=\
 	dev.$O\
 	edf.$O\
 	fault.$O\
+	iomap.$O\
 	page.$O\
 	parse.$O\
 	pgrp.$O\
@@ -67,9 +68,11 @@ OBJ=\
 	plan9l.$O\
 	xen.$O\
 	main.$O\
+	fpu.$O\
 	mmu.$O\
 	random.$O\
 	rdb.$O\
+	irq.$O\
 	trap.$O\
 	$CONF.root.$O\
 	$CONF.rootc.$O\

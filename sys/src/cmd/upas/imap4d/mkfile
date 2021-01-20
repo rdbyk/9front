@@ -1,5 +1,7 @@
 </$objtype/mkfile
 
+TARG=imap4d
+
 OFILES=\
 	auth.$O\
 	copy.$O\
@@ -23,16 +25,9 @@ OFILES=\
 	store.$O\
 	utils.$O\
 
-HFILES=imap4d.h\
+HFILES=\
+	imap4d.h\
 	fns.h\
 
-TARG=imap4d
-
-UPDATE=\
-	mkfile\
-	$HFILES\
-	${OFILES:%.$O=%.c}\
-
 </sys/src/cmd/mkone
-
 <../mkupas

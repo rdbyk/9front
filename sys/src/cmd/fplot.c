@@ -53,9 +53,13 @@ void mul(void) { sp--; *sp *= *(sp+1); }
 void div(void) { sp--; *sp /= *(sp+1); }
 void mod(void) { sp--; *sp = fmod(*sp, *(sp+1)); }
 void pot(void) { sp--; *sp = pow(*sp, *(sp+1)); }
+void oabs(void) { *sp = fabs(*sp); }
 void osin(void) { *sp = sin(*sp); }
 void ocos(void) { *sp = cos(*sp); }
 void otan(void) { *sp = tan(*sp); }
+void osinh(void) { *sp = sinh(*sp); }
+void ocosh(void) { *sp = cosh(*sp); }
+void otanh(void) { *sp = tanh(*sp); }
 void oasin(void) { *sp = asin(*sp); }
 void oacos(void) { *sp = acos(*sp); }
 void oatan(void) { *sp = atan(*sp); }
@@ -79,6 +83,10 @@ struct Operator {
 	"/",	OBINARY,	0,	200,	div,
 	"%",	OBINARY,	0,	200,	mod,
 	"^",	OBINARY,	1,	300,	pot,
+	"sinh",	OUNARY,		0,	400,	osinh,
+	"cosh",	OUNARY,		0,	400,	ocosh,
+	"tanh",	OUNARY,		0,	400,	otanh,
+	"abs",	OUNARY,		0,	400,	oabs,
 	"sin",	OUNARY,		0,	400,	osin,
 	"cos",	OUNARY,		0,	400,	ocos,
 	"tan",	OUNARY,		0,	400,	otan,

@@ -2,6 +2,7 @@
 
 BIN=/$objtype/bin
 TARG=vmx
+CLEANFILES=$O.vmxgdb
 HFILES=dat.h fns.h
 OFILES=\
 	vmx.$O \
@@ -15,8 +16,13 @@ OFILES=\
 	vesa.$O \
 	9p.$O \
 	x86.$O \
+	nanosec.$O \
 
 </sys/src/cmd/mkone
+
+default:V:	all
+
+all:V:	$O.out $O.vmxgdb
 
 install:V:	$BIN/vmxgdb
 

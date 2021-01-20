@@ -2,9 +2,9 @@
 #include <libc.h>
 #include <bio.h>
 
-char	dayw[] =
+char	dayws[] =
 {
-	" S  M Tu  W Th  F  S"
+	"Su  M Tu  W Th  F Sa Su  M Tu  W Th  F Sa",
 };
 char	*smon[] =
 {
@@ -21,6 +21,7 @@ char	mon[] =
 };
 char	string[432];
 Biobuf	bout;
+int	wstart;
 
 void	main(int argc, char *argv[]);
 int	number(char *str);
@@ -30,21 +31,41 @@ int	jan1(int yr);
 int	curmo(void);
 int	curyr(void);
 
+static void
+usage(void)
+{
+	fprint(2, "usage: cal [-s 1..7] [month] [year]\n");
+	exits("usage");
+}
+
 void
 main(int argc, char *argv[])
 {
 	int y, i, j, m;
+	char *dayw;
 
-	if(argc > 3) {
-		fprint(2, "usage: cal [month] [year]\n");
-		exits("usage");
-	}
+	ARGBEGIN{
+	case 's':
+		wstart = atoi(EARGF(usage()));
+		if(wstart < 0 || wstart > 7)
+			usage();
+		wstart %= 7;
+		break;
+	default:
+		usage();
+	}ARGEND
+
+	if(argc > 2)
+		usage();
 	Binit(&bout, 1, OWRITE);
+
+	dayw = dayws + 3*wstart;
+	dayw[3*7] = '\0';
 
 /*
  * no arg, print current month
  */
-	if(argc == 1) {
+	if(argc == 0) {
 		m = curmo();
 		y = curyr();
 		goto xshort;
@@ -55,8 +76,8 @@ main(int argc, char *argv[])
  *	if looks like a month, print month
  *	else print year
  */
-	if(argc == 2) {
-		y = number(argv[1]);
+	if(argc == 1) {
+		y = number(argv[0]);
 		if(y < 0)
 			y = -y;
 		if(y >= 1 && y <= 12) {
@@ -70,10 +91,10 @@ main(int argc, char *argv[])
 /*
  * two arg, month and year
  */
-	m = number(argv[1]);
+	m = number(argv[0]);
 	if(m < 0)
 		m = -m;
-	y = number(argv[2]);
+	y = number(argv[1]);
 	goto xshort;
 
 /*
@@ -89,13 +110,12 @@ xshort:
 	cal(m, y, string, 24);
 	for(i=0; i<6*24; i+=24)
 		pstr(string+i, 24);
-	exits(0);
+	exits(nil);
 
 /*
  *	print out complete year
  */
 xlong:
-	y = number(argv[1]);
 	if(y<1 || y>9999)
 		goto badarg;
 	Bprint(&bout, "\n\n\n");
@@ -115,7 +135,7 @@ xlong:
 			pstr(string+j, 72);
 	}
 	Bprint(&bout, "\n\n\n");
-	exits(0);
+	exits(nil);
 
 badarg:
 	Bprint(&bout, "cal: bad argument\n");
@@ -232,6 +252,7 @@ cal(int m, int y, char *p, int w)
 	}
 	for(i=1; i<m; i++)
 		d += mon[i];
+	d += 7 - wstart;
 	d %= 7;
 	s += 3*d;
 	for(i=1; i<=mon[m]; i++) {

@@ -118,6 +118,7 @@ GMT 0 GMT 0
 .SH "SEE ALSO"
 .IR date (1),
 .IR time (2),
+.IR tmdate (2),
 .IR init (8)
 .SH BUGS
 The return values point to static data
@@ -128,3 +129,6 @@ Daylight Savings Time is ``normal'' in the Southern hemisphere.
 These routines are not equipped to handle non-\c
 .SM ASCII
 text, and are provincial anyway.
+.br
+These routines may garble the date when passed a date parsed with
+.IR tmparse (2).

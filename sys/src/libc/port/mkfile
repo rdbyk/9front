@@ -20,6 +20,7 @@ CFILES=\
 	cleanname.c\
 	crypt.c\
 	ctype.c\
+	date.c\
 	encodefmt.c\
 	execl.c\
 	exits.c\
@@ -31,7 +32,6 @@ CFILES=\
 	frexp.c\
 	getcallerpc.c\
 	getfields.c\
-	getuser.c\
 	hangup.c\
 	hypot.c\
 	lnrand.c\

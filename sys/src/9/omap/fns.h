@@ -125,10 +125,8 @@ uintptr mmukmap(uintptr, uintptr, usize);
 uintptr mmukunmap(uintptr, uintptr, usize);
 extern void* mmuuncache(void*, usize);
 extern void* ucalloc(usize);
-extern Block* ucallocb(int);
 extern void* ucallocalign(usize size, int align, int span);
 extern void ucfree(void*);
-extern void ucfreeb(Block*);
 
 /*
  * Things called from port.
@@ -158,8 +156,6 @@ extern void forkret(void);
 extern int userureg(Ureg*);
 void*	vmap(uintptr, usize);
 void	vunmap(void*, usize);
-
-extern void kexit(Ureg*);
 
 #define	getpgcolor(a)	0
 #define	kmapinval()

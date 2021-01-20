@@ -110,10 +110,7 @@ uintptr mmukunmap(uintptr, uintptr, usize);
 extern void* mmuuncache(void*, usize);
 extern void* ucalloc(usize);
 extern void* ucallocalign(usize size, int align, usize span);
-extern Block* ucallocb(int);
 extern void ucfree(void*);
-extern void ucfreeb(Block*);
-extern Block* uciallocb(int);
 
 /*
  * Things called from port.
@@ -130,31 +127,6 @@ extern int splflo(void);
 extern void sysprocsetup(Proc*);
 extern int isaconfig(char*, int, ISAConf*);	/* only devusb.c */
 
-/*
- * PCI
- */
-ulong	pcibarsize(Pcidev*, int);
-void	pcibussize(Pcidev*, ulong*, ulong*);
-int	pcicfgr8(Pcidev*, int);
-int	pcicfgr16(Pcidev*, int);
-int	pcicfgr32(Pcidev*, int);
-void	pcicfgw8(Pcidev*, int, int);
-void	pcicfgw16(Pcidev*, int, int);
-void	pcicfgw32(Pcidev*, int, int);
-void	pciclrbme(Pcidev*);
-void	pciclrioe(Pcidev*);
-void	pciclrmwi(Pcidev*);
-int	pcigetpms(Pcidev*);
-void	pcihinv(Pcidev*);
-uchar	pciipin(Pcidev*, uchar);
-Pcidev* pcimatch(Pcidev*, int, int);
-Pcidev* pcimatchtbdf(int);
-void	pcireset(void);
-int	pciscan(int, Pcidev**);
-void	pcisetbme(Pcidev*);
-void	pcisetioe(Pcidev*);
-void	pcisetmwi(Pcidev*);
-int	pcisetpms(Pcidev*, int);
 int	cas32(void*, u32int, u32int);
 int	tas32(void*);
 
@@ -167,8 +139,6 @@ extern void forkret(void);
 extern int userureg(Ureg*);
 void*	vmap(uintptr, usize);
 void	vunmap(void*, usize);
-
-extern void kexit(Ureg*);
 
 #define	getpgcolor(a)	0
 #define	kmapinval()

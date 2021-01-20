@@ -34,7 +34,7 @@ getshadow(void)
 
 /* just get it from the shared info */
 void
-guesscpuhz(int) // XXX no arg!
+xentimerinit(void)
 {
 	vcpu_time_info_t *t;
 
@@ -68,7 +68,7 @@ xentimerclock(Ureg* ureg, void*)
 void
 xentimerenable(void)
 {
-	intrenable(VIRQ_TIMER, xentimerclock, nil, 0, "Xen Timer");
+	intrenable(VIRQ_TIMER, xentimerclock, nil, 0, "clock");
 }
 
 uvlong

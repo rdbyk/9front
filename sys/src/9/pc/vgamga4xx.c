@@ -14,6 +14,7 @@
 #include "dat.h"
 #include "fns.h"
 #include "io.h"
+#include "../port/pci.h"
 #include "../port/error.h"
 
 #define	Image IMAGE
@@ -404,7 +405,6 @@ static int
 mga4xxscroll(VGAscr *scr, Rectangle dr, Rectangle sr)
 {
 	uchar * mga;
-	int pitch;
  	int width, height;
 	ulong start, end, sgn;
 	Point sp, dp;
@@ -420,7 +420,6 @@ mga4xxscroll(VGAscr *scr, Rectangle dr, Rectangle sr)
 	if(eqpt(sp, dp))
 		return 1;
 
-	pitch = Dx(scr->gscreen->r);
 	width = Dx(sr);
 	height = Dy(sr);
 	sgn = 0;
@@ -432,7 +431,7 @@ mga4xxscroll(VGAscr *scr, Rectangle dr, Rectangle sr)
 	}
 
 	width--;
-	start = end = sp.x + (sp.y * pitch);
+	start = end = sp.x + (sp.y * scr->width);
 
 	if(dp.x > sp.x && dp.x < sp.x + width){
 		start += width;
@@ -444,7 +443,7 @@ mga4xxscroll(VGAscr *scr, Rectangle dr, Rectangle sr)
 	mga_fifo(mga, 8);
 	mgawrite32(mga, DWGCTL, 0);
 	mgawrite32(mga, SGN, sgn);
-	mgawrite32(mga, AR5, sgn & SGN_UP ? -pitch : pitch);
+	mgawrite32(mga, AR5, sgn & SGN_UP ? -scr->width : scr->width);
 	mgawrite32(mga, AR0, end);
 	mgawrite32(mga, AR3, start);
 	mgawrite32(mga, FXBNDRY, ((dp.x + width) << 16) | dp.x);

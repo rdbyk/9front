@@ -24,6 +24,8 @@ PORT=\
 	dev.$O\
 	edf.$O\
 	fault.$O\
+	iomap.$O\
+	memmap.$O\
 	page.$O\
 	parse.$O\
 	pgrp.$O\
@@ -35,7 +37,6 @@ PORT=\
 	random.$O\
 	rdb.$O\
 	rebootcmd.$O\
-	memmap.$O\
 	segment.$O\
 	syscallfmt.$O\
 	sysfile.$O\
@@ -48,11 +49,13 @@ PORT=\
 OBJ=\
 	l.$O\
 	cga.$O\
+	fpu.$O\
 	i8253.$O\
 	i8259.$O\
 	main.$O\
 	memory.$O\
 	mmu.$O\
+	irq.$O\
 	trap.$O\
 	bootargs.$O\
 	$CONF.root.$O\

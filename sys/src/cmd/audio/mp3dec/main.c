@@ -7,6 +7,8 @@
 
 /* Current input file */
 vlong offset;
+double seekto = 0.0;
+uvlong samples = 0;
 int debug = 0;
 int ifd = -1;
 
@@ -30,6 +32,22 @@ input(void *, struct mad_stream *stream)
 }
 
 static enum mad_flow
+header(void *, struct mad_header const* header)
+{
+	if(seekto > 0){
+		uvlong after = samples + 32*MAD_NSBSAMPLES(header);
+		if((double)after/header->samplerate >= seekto){
+			fprint(2, "time: %g\n", (double)samples/header->samplerate);
+			seekto = 0;
+		}else{
+			samples = after;
+			return MAD_FLOW_IGNORE;
+		}
+	}
+	return MAD_FLOW_CONTINUE;
+}
+
+static enum mad_flow
 output(void *, struct mad_header const* header, struct mad_pcm *pcm)
 {
 	static int rate, chans;
@@ -38,6 +56,9 @@ output(void *, struct mad_header const* header, struct mad_pcm *pcm)
 	mad_fixed_t v, *s;
 	int i, j, n;
 	uchar *p;
+
+	if(seekto > 0)
+		return MAD_FLOW_IGNORE;
 
 	/* start converter if format changed */
 	if(rate != pcm->samplerate || chans != pcm->channels){
@@ -145,11 +166,15 @@ main(int argc, char **argv)
 	case 'd':
 		debug++;
 		break;
+	case 's':
+		seekto = atof(EARGF(usage()));
+		if(seekto >= 0.0)
+			break;
 	default:
 		usage();
 	}ARGEND
 
-	mad_decoder_init(&decoder, nil, input, nil, nil, output, error, nil);
+	mad_decoder_init(&decoder, nil, input, header, nil, output, error, nil);
 	mad_decoder_run(&decoder, MAD_DECODER_MODE_SYNC);
 	mad_decoder_finish(&decoder);
 

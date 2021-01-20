@@ -1,17 +1,32 @@
 .TH AUDIO 1
 .SH NAME
-mp3dec, mp3enc, oggdec, oggenc, flacdec, sundec, wavdec, pcmconv, mixfs \- decode and encode audio files
+mp3dec, mp3enc, oggdec, oggenc, flacdec, flacenc, sundec, wavdec, pcmconv, mixfs \- decode and encode audio files
 .SH SYNOPSIS
 .B audio/mp3dec
 [
+.B -s
+.I seconds
+] [
 .B -d
 ]
 .br
 .B audio/oggdec
+[
+.B -s
+.I seconds
+]
 .br
 .B audio/flacdec
+[
+.B -s
+.I seconds
+]
 .br
 .B audio/wavdec
+[
+.B -s
+.I seconds
+]
 .br
 .B audio/sundec
 .PP
@@ -39,6 +54,27 @@ q ] [
 .I q
 ] [
 .I "long or silly options"
+]
+.br
+.B audio/flacenc
+[
+.B -b
+.I bitspersample
+] [
+.B -c
+.I channels
+] [
+.B -l
+.I compresslevel
+] [
+.B -s
+.I sfreq
+] [
+.B -P
+.I padding
+] [
+.B -T
+.I field=value
 ]
 .PP
 .B audio/pcmconv
@@ -82,14 +118,21 @@ and
 are like
 .I mp3dec
 but decode OGG Vorbis, FLAC lossless audio, Sun audio and RIFF wave.
+.SS Decoding options
+.TF "\fB-s seconds \fP"
+.TP
+.BI -s " seconds"
+seek to a specific position in seconds before decoding.
+.SS
 .PP
 The encoders read PCM on standard input and produce compressed audio
 on standard output.
 .PP
-.I Oggenc
+.I Flacenc,
+.I oggenc
 and
 .I mp3enc
-produce OGG Vorbis and MP3 audio. For
+produce FLAC, OGG Vorbis and MP3 audio. For
 .I mp3enc,
 the MP3 file will use `constant bit-rate' (CBR) encoding by default, 
 but that can be changed via
@@ -99,14 +142,16 @@ or
 .BR -v
 (variable bitrate, VBR).
 .PP
-.I Oggenc
-accepts raw PCM in the same byte order as
+.I Flacenc
+and
+.I oggenc
+accept raw PCM in the same byte order as
 .B /dev/audio
 (little-endian),
-t
+while
 .I mp3enc -r
 expects big-endian.
-.SS Options
+.SS Encoding options
 .TF "\fB-b \fP"
 .TP
 .B -b
@@ -359,3 +404,5 @@ dd -conv swab | audio/mp3enc -a -r -m m --resample 16 -b 24
 first appeared in 9front (December, 2012).
 .I Mixfs
 first appeared in 9front (December, 2013).
+.I Flacenc
+first appeared in 9front (January, 2021).

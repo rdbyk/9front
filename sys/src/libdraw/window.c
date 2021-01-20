@@ -90,18 +90,11 @@ freescreen(Screen *s)
 	d = s->display;
 	a = bufimage(d, 1+4);
 	if(a == nil){
-Error:
 		free(s);
 		return -1;
 	}
 	a[0] = 'F';
 	BPLONG(a+1, s->id);
-	/*
-	 * flush(1) because screen is likely holding last reference to
-	 * window, and want it to disappear visually.
-	 */
-	if(flushimage(d, 1) < 0)
-		goto Error;
 	free(s);
 	return 1;
 }

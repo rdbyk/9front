@@ -245,8 +245,11 @@ ipalookup(uchar *ip, int class, int enter)
 static int
 rrsame(RR *rr1, RR *rr2)
 {
-	return rr1 == rr2 || rr2 && rrequiv(rr1, rr2) &&
-		rr1->db == rr2->db && rr1->auth == rr2->auth;
+	return rr1 == rr2 ||
+		rr1 != nil && rr2 != nil &&
+		rr1->db == rr2->db &&
+		rr1->auth == rr2->auth &&
+		rrequiv(rr1, rr2);
 }
 
 static int
@@ -638,7 +641,8 @@ dnauthdb(void)
 						if(rp->ttl < minttl)
 							rp->ttl = minttl;
 						rp->auth = 1;
-					}
+					} else if(rp->type == Tns && inmyarea(rp->host->name))
+						rp->auth = 1;
 				}
 				l = &rp->next;
 			}
@@ -798,7 +802,7 @@ rrattach1(RR *new, int auth)
 				continue;	
 			}
 			/* all things equal, pick the newer one */
-			else if(rp->arg0 == new->arg0 && rp->arg1 == new->arg1){
+			else if(rrequiv(rp, new)){
 				/* old drives out new */
 				if((long)(rp->expire - new->expire) > 0) {
 					rrfree(new);
@@ -889,6 +893,7 @@ rrcopy(RR *rp, RR **last)
 		nrp->srv = srv;
 		*srv = *rp->srv;
 		break;
+	case Tdnskey:
 	case Tkey:
 		key = nrp->key;
 		*nrp = *rp;
@@ -1269,6 +1274,7 @@ rrfmt(Fmt *f)
 	case Trp:
 		fmtprint(&fstr, "\t%s %s", dnname(rp->rmb), dnname(rp->rp));
 		break;
+	case Tdnskey:
 	case Tkey:
 		if (rp->key == nil)
 			fmtprint(&fstr, "\t<null> <null> <null>");
@@ -1409,6 +1415,7 @@ rravfmt(Fmt *f)
 			idnname(rp->rmb, buf, sizeof(buf)),
 			idnname(rp->rp, buf, sizeof(buf)));
 		break;
+	case Tdnskey:
 	case Tkey:
 		if (rp->key == nil)
 			fmtprint(&fstr, " flags=<null> proto=<null> alg=<null>");
@@ -1524,12 +1531,73 @@ slave(Request *req)
 }
 
 static int
+blockequiv(Block *a, Block *b)
+{
+	return	a->dlen == b->dlen &&
+		memcmp(a->data, b->data, a->dlen) == 0;
+}
+
+static int
+keyequiv(Key *a, Key *b)
+{
+	return	a->flags == b->flags &&
+		a->proto == b->proto &&
+		a->alg == b->alg &&
+		blockequiv(a, b);
+}
+
+static int
+certequiv(Cert *a, Cert *b)
+{
+	return	a->type == a->type &&
+		a->tag == a->tag &&
+		a->alg == a->alg &&
+		blockequiv(a, b);
+}
+
+static int
+txtequiv(Txt *a, Txt *b)
+{
+	char *ap, *ae, *bp, *be;
+	int n;
+
+	for(ap = ae = bp = be = nil;;ap += n, bp += n){
+		while(a != nil && (ap == nil || (ap == ae && (a = a->next) != nil)))
+			ap = a->p, ae = ap + strlen(ap);
+		while(b != nil && (bp == nil || (bp == be && (b = b->next) != nil)))
+			bp = b->p, be = bp + strlen(bp);
+		if(a == b || a == nil || b == nil)
+			break;
+		n = ae - ap;
+		if(be - bp < n)
+			n = be - bp;
+		if(memcmp(ap, bp, n) != 0)
+			return 0;
+	}
+	return a == b;
+}
+
+static int
 rrequiv(RR *r1, RR *r2)
 {
-	return r1->owner == r2->owner
-		&& r1->type == r2->type
-		&& r1->arg0 == r2->arg0
-		&& r1->arg1 == r2->arg1;
+	if(r1->owner != r2->owner
+	|| r1->type != r2->type
+	|| r1->arg0 != r2->arg0
+	|| r1->arg1 != r2->arg1)
+		return 0;
+	switch(r1->type){
+	case Tkey:
+		return keyequiv(r1->key, r2->key);
+	case Tcert:
+		return certequiv(r1->cert, r2->cert);
+	case Tsig:
+		return r1->sig->signer == r2->sig->signer && certequiv(r1->sig, r2->sig);
+	case Tnull:
+		return blockequiv(r1->null, r2->null);
+	case Ttxt:
+		return txtequiv(r1->txt, r2->txt);
+	}
+	return 1;
 }
 
 void
@@ -1886,6 +1954,7 @@ rralloc(int type)
 		rp->srv = emalloc(sizeof(*rp->srv));
 		setmalloctag(rp->srv, rp->pc);
 		break;
+	case Tdnskey:
 	case Tkey:
 		rp->key = emalloc(sizeof(*rp->key));
 		setmalloctag(rp->key, rp->pc);
@@ -1929,6 +1998,7 @@ rrfree(RR *rp)
 		memset(rp->srv, 0, sizeof *rp->srv);	/* cause trouble */
 		free(rp->srv);
 		break;
+	case Tdnskey:
 	case Tkey:
 		free(rp->key->data);
 		memset(rp->key, 0, sizeof *rp->key);	/* cause trouble */

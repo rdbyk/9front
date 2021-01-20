@@ -15,6 +15,9 @@ marshal \- formatting and sending mail
 ] [
 .B -Fr#xn
 ] [
+.B -S
+.I saveto
+] [
 .B -p[es]
 ] [
 .B -R
@@ -104,6 +107,11 @@ as a recipient.
 .BI -F
 file the message
 .TP
+.BI -S saveto
+file the message into the
+.I saveto
+mailbox.
+.TP
 .BI -n
 intentionally no standard input
 .TP
@@ -179,7 +187,7 @@ mailbox name.
 For example:
 .IP
 .EX
-upasname=natasha@kremvax.com upas/mail boris@squirrel.com
+upasname=natasha@kremvax.com mail boris@squirrel.com
 .EE
 .PP
 .I Marshal

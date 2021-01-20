@@ -1,5 +1,4 @@
 </$objtype/mkfile
-CFLAGS=-I/sys/src/libc/9syscall $CFLAGS
 
 TARG=syscall
 OFILES=syscall.$O\
@@ -17,13 +16,8 @@ UPDATE=\
 
 SYSCALL=/sys/src/libc/9syscall/sys.h
 
-tab.h:	$SYSCALL
-	sed '/#define._X[0-9_]/d;
-		/#define.NSYSCALL/d;
-		s/#define.([A-Z0-9_][A-Z0-9_]*).*/	"\1",	(int(*)(...))\1,/' $SYSCALL |
-		tr A-Z a-z > tab.h
-	echo '	"read",	(int(*)(...))read,' >> tab.h
-	echo '	"write",	(int(*)(...))write,' >> tab.h
+tab.h:	$SYSCALL mktab.awk
+	mktab.awk $SYSCALL >$target
 
 clean:V:
 	rm -f *.[$OS] [$OS].out $TARG $HFILES

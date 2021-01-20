@@ -116,8 +116,6 @@ void
 fsysinit(void)
 {
 	int p[2];
-	int n, fd;
-	char buf[256];
 
 	if(pipe(p) < 0)
 		error("can't create pipe");
@@ -125,15 +123,7 @@ fsysinit(void)
 	sfd = p[1];
 	fmtinstall('F', fcallfmt);
 	clockfd = open("/dev/time", OREAD|OCEXEC);
-	fd = open("/dev/user", OREAD);
-	if(fd >= 0){
-		n = read(fd, buf, sizeof buf-1);
-		if(n > 0){
-			buf[n] = 0;
-			user = estrdup(buf);
-		}
-		close(fd);
-	}
+	user = getuser();
 	proccreate(fsysproc, nil, STACK);
 }
 
@@ -325,9 +315,9 @@ fsysversion(Xfid *x, Fid*)
 		return respond(x, &t, "version: message size too small");
 	messagesize = x->msize;
 	t.msize = messagesize;
-	if(strncmp(x->version, "9P2000", 6) != 0)
-		return respond(x, &t, "unrecognized 9P version");
 	t.version = "9P2000";
+	if(strncmp(x->version, "9P", 2) != 0)
+		t.version = "unknown";
 	return respond(x, &t, nil);
 }
 

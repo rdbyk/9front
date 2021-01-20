@@ -1,6 +1,6 @@
 
 #include "../smtp/smtp.h"
-#include "../smtp/y.tab.h"
+#include "../smtp/rfc822.tab.h"
 
 typedef struct Addr Addr;
 struct Addr
@@ -12,8 +12,8 @@ struct Addr
 String *from;
 String *sender;
 Field *firstfield;
-int na;
-Addr *al;
+int naddrlist;
+Addr *addrlist;
 
 extern String*	getaddr(Node *p);
 extern void	getaddrs(void);

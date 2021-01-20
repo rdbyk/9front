@@ -118,6 +118,7 @@ struct Message {
 	/* mail info */
 	char	*unixheader;
 	char	*unixfrom;
+	char	*unixdate;
 	char	*references[Nref]; /* nil terminated unless full */
 
 	/* mime info */
@@ -238,7 +239,6 @@ ulong		countlines(Message*);
 void		parse(Mailbox*, Message*, int, int);
 void		parseheaders(Mailbox*, Message*, int, int);
 void		parsebody(Message*, Mailbox*);
-char*		date822tounix(Message*, char*);
 int		strtotm(char*, Tm*);
 char*		lowercase(char*);
 

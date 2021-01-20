@@ -10,18 +10,11 @@ OFILES=\
 	fmt.$O\
 	libsys.$O\
 	process.$O\
-	totm.$O\
 
-HFILES=common.h\
+HFILES=\
+	common.h\
 	sys.h\
 
-UPDATE=\
-	mkfile\
-	${OFILES:%.$O=%.c}\
-	$HFILES\
+CLEANFILES=libcommon.a[$OS]
 
 </sys/src/cmd/mklib
-
-nuke:V:
-	mk clean
-	rm -f libcommon.a[$OS]

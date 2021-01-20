@@ -76,6 +76,8 @@ main(void)
 	// meminit() is not for us
 	confinit();
 	archinit();
+	if(arch->clockinit)
+		arch->clockinit();
 	xinit();
 	trapinit();
 	printinit();
@@ -322,175 +324,22 @@ confinit(void)
 	}
 }
 
-static char* mathmsg[] =
-{
-	nil,	/* handled below */
-	"denormalized operand",
-	"division by zero",
-	"numeric overflow",
-	"numeric underflow",
-	"precision loss",
-};
-
-static void
-mathnote(void)
-{
-	int i;
-	ulong status;
-	char *msg, note[ERRMAX];
-
-	status = up->fpsave->status;
-
-	/*
-	 * Some attention should probably be paid here to the
-	 * exception masks and error summary.
-	 */
-	msg = "unknown exception";
-	for(i = 1; i <= 5; i++){
-		if(!((1<<i) & status))
-			continue;
-		msg = mathmsg[i];
-		break;
-	}
-	if(status & 0x01){
-		if(status & 0x40){
-			if(status & 0x200)
-				msg = "stack overflow";
-			else
-				msg = "stack underflow";
-		}else
-			msg = "invalid operation";
-	}
- 	snprint(note, sizeof note, "sys: fp: %s fppc=0x%lux status=0x%lux",
- 		msg, up->fpsave->pc, status);
-	postnote(up, 1, note, NDebug);
-}
-
-/*
- *  math coprocessor error
- */
-static void
-matherror(Ureg *ur, void*)
-{
-	/*
-	 *  a write cycle to port 0xF0 clears the interrupt latch attached
-	 *  to the error# line from the 387
-	 */
-	if(!(m->cpuiddx & 0x01))
-		outb(0xF0, 0xFF);
-
-	/*
-	 *  save floating point state to check out error
-	 */
-	fpenv(up->fpsave);
-	mathnote();
-
-	if(ur->pc & KZERO)
-		panic("fp: status %ux fppc=0x%lux pc=0x%lux",
-			up->fpsave->status, up->fpsave->pc, ur->pc);
-}
-
-/*
- *  math coprocessor emulation fault
- */
-static void
-mathemu(Ureg *ureg, void*)
-{
-	if(up->fpstate & FPillegal){
-		/* someone did floating point in a note handler */
-		postnote(up, 1, "sys: floating point in note handler", NDebug);
-		return;
-	}
-	switch(up->fpstate){
-	case FPinit:
-		fpinit();
-		while(up->fpsave == nil)
-			up->fpsave = mallocalign(sizeof(FPsave), FPalign, 0, 0);
-		up->fpstate = FPactive;
-		break;
-	case FPinactive:
-		/*
-		 * Before restoring the state, check for any pending
-		 * exceptions, there's no way to restore the state without
-		 * generating an unmasked exception.
-		 * More attention should probably be paid here to the
-		 * exception masks and error summary.
-		 */
-		if((up->fpsave->status & ~up->fpsave->control) & 0x07F){
-			mathnote();
-			break;
-		}
-		fprestore(up->fpsave);
-		up->fpstate = FPactive;
-		break;
-	case FPactive:
-		panic("math emu pid %ld %s pc 0x%lux", 
-			up->pid, up->text, ureg->pc);
-		break;
-	}
-}
-
-/*
- *  math coprocessor segment overrun
- */
-static void
-mathover(Ureg*, void*)
-{
-	pexit("math overrun", 0);
-}
-
 void
-mathinit(void)
+procsetup(Proc *p)
 {
-	trapenable(VectorCERR, matherror, 0, "matherror");
-	//if(X86FAMILY(m->cpuidax) == 3)
-	//	intrenable(IrqIRQ13, matherror, 0, BUSUNKNOWN, "matherror");
-	trapenable(VectorCNA, mathemu, 0, "mathemu");
-	trapenable(VectorCSO, mathover, 0, "mathover");
-}
-
-/*
- *  set up floating point for a new process
- */
-void
-procsetup(Proc*p)
-{
-	p->fpstate = FPinit;
-	fpoff();
+	fpuprocsetup(p);
 }
 
 void
 procfork(Proc *p)
 {
-	int s;
-
-	p->kentry = up->kentry;
-	p->pcycles = -p->kentry;
-
-	/* save floating point state */
-	s = splhi();
-	switch(up->fpstate & ~FPillegal){
-	case FPactive:
-		fpsave(up->fpsave);
-		up->fpstate = FPinactive;
-	case FPinactive:
-		while(p->fpsave == nil)
-			p->fpsave = mallocalign(sizeof(FPsave), FPalign, 0, 0);
-		memmove(p->fpsave, up->fpsave, sizeof(FPsave));
-		p->fpstate = FPinactive;
-	}
-	splx(s);
+	fpuprocfork(p);
 }
 
 void
 procrestore(Proc *p)
 {
-	uvlong t;
-
-	if(p->kp)
-		return;
-	cycles(&t);
-	p->pcycles -= t;
+	fpuprocrestore(p);
 }
 
 /*
@@ -499,26 +348,7 @@ procrestore(Proc *p)
 void
 procsave(Proc *p)
 {
-	uvlong t;
-
-	cycles(&t);
-	p->pcycles += t;
-	if(p->fpstate == FPactive){
-		if(p->state == Moribund)
-			fpclear();
-		else{
-			/*
-			 * Fpsave() stores without handling pending
-			 * unmasked exeptions. Postnote() can't be called
-			 * here as sleep() already has up->rlock, so
-			 * the handling of pending exceptions is delayed
-			 * until the process runs again and generates an
-			 * emulation fault to activate the FPU.
-			 */
-			fpsave(p->fpsave);
-		}
-		p->fpstate = FPinactive;
-	}
+	fpuprocsave(p);
 
 	/*
 	 * While this processor is in the scheduler, the process could run

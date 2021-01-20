@@ -88,28 +88,10 @@ extern void mmuidmap(uintptr phys, int mbs);
 extern void mmuinvalidate(void);		/* 'mmu' or 'tlb'? */
 extern void mmuinvalidateaddr(u32int);		/* 'mmu' or 'tlb'? */
 extern void mousectl(Cmdbuf *cb);
-extern ulong pcibarsize(Pcidev*, int);
-extern void pcibussize(Pcidev*, ulong*, ulong*);
-extern int pcicfgr8(Pcidev*, int);
-extern int pcicfgr16(Pcidev*, int);
-extern int pcicfgr32(Pcidev*, int);
-extern void pcicfgw8(Pcidev*, int, int);
-extern void pcicfgw16(Pcidev*, int, int);
-extern void pcicfgw32(Pcidev*, int, int);
-extern void pciclrbme(Pcidev*);
-extern void pciclrioe(Pcidev*);
-extern void pciclrmwi(Pcidev*);
+extern int pcicfgrw8(int, int, int, int);
+extern int pcicfgrw16(int, int, int, int);
+extern int pcicfgrw32(int, int, int, int);
 extern void pcieintrdone(void);
-extern int pcigetpms(Pcidev*);
-extern void pcihinv(Pcidev*);
-extern uchar pciipin(Pcidev*, uchar);
-extern Pcidev* pcimatch(Pcidev*, int, int);
-extern Pcidev* pcimatchtbdf(int);
-extern void pcireset(void);
-extern void pcisetbme(Pcidev*);
-extern void pcisetioe(Pcidev*);
-extern void pcisetmwi(Pcidev*);
-extern int pcisetpms(Pcidev*, int);
 extern u32int pidget(void);
 extern void pidput(u32int);
 extern void prcachecfg(void);
@@ -182,10 +164,8 @@ uintptr mmukmap(uintptr, uintptr, usize);
 uintptr mmukunmap(uintptr, uintptr, usize);
 extern void* mmuuncache(void*, usize);
 extern void* ucalloc(usize);
-extern Block* ucallocb(int);
 extern void* ucallocalign(usize size, int align, int span);
 extern void ucfree(void*);
-extern void ucfreeb(Block*);
 
 /*
  * Things called from port.
@@ -210,8 +190,6 @@ extern void forkret(void);
 extern int userureg(Ureg*);
 void*	vmap(uintptr, usize);
 void vunmap(void*, usize);
-
-extern void kexit(Ureg*);
 
 #define	getpgcolor(a)	0
 #define	kmapinval()

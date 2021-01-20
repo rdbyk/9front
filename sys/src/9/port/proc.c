@@ -6,6 +6,8 @@
 #include	"../port/error.h"
 #include	"edf.h"
 #include	<trace.h>
+#include	"tos.h"
+#include	"ureg.h"
 
 int	schedgain = 30;	/* units in seconds */
 int	nrdy;
@@ -79,27 +81,21 @@ schedinit(void)		/* never returns */
 		case Moribund:
 			up->state = Dead;
 			edfstop(up);
-			if(up->edf != nil)
+			if(up->edf != nil){
 				free(up->edf);
-			up->edf = nil;
+				up->edf = nil;
+			}
 
-			/*
-			 * Holding locks from pexit:
-			 * 	procalloc
-			 *	palloc
-			 */
 			mmurelease(up);
-			unlock(&palloc);
 
-			updatecpu(up);
+			lock(&procalloc);
 			up->mach = nil;
-
 			up->qnext = procalloc.free;
 			procalloc.free = up;
-
 			/* proc is free now, make sure unlock() wont touch it */
 			up = procalloc.Lock.p = nil;
 			unlock(&procalloc);
+
 			sched();
 		}
 		coherence();
@@ -107,6 +103,58 @@ schedinit(void)		/* never returns */
 		up = nil;
 	}
 	sched();
+}
+
+int
+kenter(Ureg *ureg)
+{
+	int user;
+
+	user = userureg(ureg);
+	if(user){
+		up->dbgreg = ureg;
+		cycles(&up->kentry);
+	}
+	return user;
+}
+
+void
+kexit(Ureg*)
+{
+	uvlong t;
+	Tos *tos;
+
+	cycles(&t);
+
+	/* precise time accounting, kernel exit */
+	tos = (Tos*)(USTKTOP-sizeof(Tos));
+	tos->kcycles += t - up->kentry;
+	tos->pcycles = t + up->pcycles;
+	tos->pid = up->pid;
+}
+
+static void
+procswitch(void)
+{
+	uvlong t;
+
+	/* statistics */
+	m->cs++;
+
+	cycles(&t);
+	up->kentry -= t;
+	up->pcycles += t;
+
+	procsave(up);
+
+	if(!setlabel(&up->sched))
+		gotolabel(&m->sched);
+
+	procrestore(up);
+
+	cycles(&t);
+	up->kentry += t;
+	up->pcycles -= t;
 }
 
 /*
@@ -151,19 +199,10 @@ sched(void)
 			return;
 		}
 		up->delaysched = 0;
-
 		splhi();
-
-		/* statistics */
-		m->cs++;
-
-		procsave(up);
-		if(setlabel(&up->sched)){
-			procrestore(up);
-			spllo();
-			return;
-		}
-		gotolabel(&m->sched);
+ 		procswitch();
+		spllo();
+		return;
 	}
 	p = runproc();
 	if(p->edf == nil){
@@ -758,25 +797,9 @@ sleep(Rendez *r, int (*f)(void*), void *arg)
 			pt(up, SSleep, 0);
 		up->state = Wakeme;
 		up->r = r;
-
-		/* statistics */
-		m->cs++;
-
-		procsave(up);
-		if(setlabel(&up->sched)) {
-			/*
-			 *  here when the process is awakened
-			 */
-			procrestore(up);
-			spllo();
-		} else {
-			/*
-			 *  here to go to sleep (i.e. stop Running)
-			 */
-			unlock(&up->rlock);
-			unlock(r);
-			gotolabel(&m->sched);
-		}
+		unlock(&up->rlock);
+		unlock(r);
+		procswitch();
 	}
 
 	if(up->notepending) {
@@ -1007,8 +1030,8 @@ struct
 	Proc	*p[NBROKEN];
 }broken;
 
-void
-addbroken(Proc *p)
+static void
+addbroken(void)
 {
 	qlock(&broken);
 	if(broken.n == NBROKEN) {
@@ -1016,12 +1039,12 @@ addbroken(Proc *p)
 		memmove(&broken.p[0], &broken.p[1], sizeof(Proc*)*(NBROKEN-1));
 		--broken.n;
 	}
-	broken.p[broken.n++] = p;
+	broken.p[broken.n++] = up;
 	qunlock(&broken);
 
 	edfstop(up);
-	p->state = Broken;
-	p->psstate = nil;
+	up->state = Broken;
+	up->psstate = nil;
 	sched();
 }
 
@@ -1153,7 +1176,7 @@ pexit(char *exitstr, int freemem)
 	}
 
 	if(!freemem)
-		addbroken(up);
+		addbroken();
 
 	qlock(&up->debug);
 
@@ -1193,10 +1216,6 @@ pexit(char *exitstr, int freemem)
 		}
 	}
 	qunlock(&up->seglock);
-
-	/* Sched must not loop for these locks */
-	lock(&procalloc);
-	lock(&palloc);
 
 	edfstop(up);
 	up->state = Moribund;
@@ -1376,6 +1395,14 @@ procflushothers(void)
 	procflushmmu(matchother, up);
 }
 
+static void
+linkproc(void)
+{
+	spllo();
+	(*up->kpfun)(up->kparg);
+	pexit("kproc exiting", 0);
+}
+
 void
 kproc(char *name, void (*func)(void *), void *arg)
 {
@@ -1406,7 +1433,9 @@ kproc(char *name, void (*func)(void *), void *arg)
 	p->hang = 0;
 	p->kp = 1;
 
-	kprocchild(p, func, arg);
+	p->kpfun = func;
+	p->kparg = arg;
+	kprocchild(p, linkproc);
 
 	kstrdup(&p->text, name);
 	kstrdup(&p->user, eve);
@@ -1422,6 +1451,8 @@ kproc(char *name, void (*func)(void *), void *arg)
 	p->insyscall = 1;
 	memset(p->time, 0, sizeof(p->time));
 	p->time[TReal] = MACHP(0)->ticks;
+	cycles(&p->kentry);
+	p->pcycles = -p->kentry;
 
 	pidalloc(p);
 
@@ -1608,12 +1639,12 @@ renameuser(char *old, char *new)
 }
 
 void
-procsetuser(Proc *p, char *new)
+procsetuser(char *new)
 {
-	qlock(&p->debug);
-	kstrdup(&p->user, new);
-	p->basepri = PriNormal;
-	qunlock(&p->debug);
+	qlock(&up->debug);
+	kstrdup(&up->user, new);
+	up->basepri = PriNormal;
+	qunlock(&up->debug);
 }
 
 /*

@@ -4,10 +4,13 @@
 #include "dat.h"
 #include "fns.h"
 #include "io.h"
+#include "../port/pci.h"
 #include "ureg.h"
 
 #include "mp.h"
 #include "apbootstrap.i"
+
+extern void i8259init(void);
 
 /* filled in by pcmpinit or acpiinit */
 Bus* mpbus;
@@ -290,23 +293,51 @@ allocvector(void)
 }
 
 static int
-mpintrenablex(Vctl* v, int tbdf)
+ioapicirqenable(Vctl *v, int shared)
+{
+	Aintr *aintr = v->aux;
+	int lo, hi;
+
+	if(shared)
+		return 0;
+	hi = v->cpu<<24;
+	lo = mpintrinit(aintr->bus, aintr->intr, v->vno, v->irq);
+	lo |= ApicPHYSICAL;			/* no-op */
+ 	ioapicrdtw(aintr->apic, aintr->intr->intin, hi, lo);
+	return 0;
+}
+
+static int
+ioapicirqdisable(Vctl *v, int shared)
+{
+	Aintr *aintr = v->aux;
+	int lo, hi;
+
+	if(shared)
+		return 0;
+	hi = 0;
+	lo = ApicIMASK;
+ 	ioapicrdtw(aintr->apic, aintr->intr->intin, hi, lo);
+	return 0;
+}
+
+static int
+mpintrassignx(Vctl* v, int tbdf)
 {
 	Bus *bus;
+	Pcidev *pci;
 	Aintr *aintr;
-	Apic *apic;
-	Pcidev *pcidev;
-	int bno, dno, pin, hi, irq, lo, n, type, vno;
+	int bno, dno, pin, irq, type, lo, hi, n;
 
 	type = BUSTYPE(tbdf);
 	bno = BUSBNO(tbdf);
 	dno = BUSDNO(tbdf);
 
 	pin = 0;
-	pcidev = nil;
+	pci = nil;
 	if(type == BusPCI){
-		if(pcidev = pcimatchtbdf(tbdf))
-			pin = pcicfgr8(pcidev, PciINTP);
+		if((pci = pcimatchtbdf(tbdf)) != nil)
+			pin = pcicfgr8(pci, PciINTP);
 	} else if(type == BusISA)
 		bno = mpisabus;
 
@@ -324,14 +355,14 @@ Findbus:
 		 * by the MP or ACPI tables then walk up the bus translating interrupt
 		 * pin to parent bus.
 		 */
-		if(pcidev && pcidev->parent && pin > 0){
+		if(pci != nil && pci->parent != nil && pin > 0){
 			pin = ((dno+(pin-1))%4)+1;
-			pcidev = pcidev->parent;
-			bno = BUSBNO(pcidev->tbdf);
-			dno = BUSDNO(pcidev->tbdf);
+			pci = pci->parent;
+			bno = BUSBNO(pci->tbdf);
+			dno = BUSDNO(pci->tbdf);
 			goto Findbus;
 		}
-		print("mpintrenable: can't find bus type %d, number %d\n", type, bno);
+		print("mpintrassign: can't find bus type %d, number %d\n", type, bno);
 		return -1;
 	}
 
@@ -345,76 +376,60 @@ Findbus:
 			irq = (dno<<2)|(pin-1);
 		else
 			irq = -1;
-	}
-	else
+	} else
 		irq = v->irq;
 
 	/*
 	 * Find a matching interrupt entry from the list of interrupts
 	 * attached to this bus.
 	 */
-	for(aintr = bus->aintr; aintr; aintr = aintr->next){
+	for(aintr = bus->aintr; aintr != nil; aintr = aintr->next){
 		if(aintr->intr->irq != irq)
 			continue;
-		if(0){
-			PCMPintr* p = aintr->intr;
-	   	 	print("mpintrenablex: bus %d intin %d irq %d\n",
-				p->busno, p->intin, p->irq);
-		}
+
 		/*
 		 * Check if already enabled. Multifunction devices may share
 		 * INT[A-D]# so, if already enabled, check the polarity matches
 		 * and the trigger is level.
-		 *
-		 * Should check the devices differ only in the function number,
-		 * but that can wait for the planned enable/disable rewrite.
-		 * The RDT read here is safe for now as currently interrupts
-		 * are never disabled once enabled.
 		 */
-		apic = aintr->apic;
-		ioapicrdtr(apic, aintr->intr->intin, 0, &lo);
-		if(!(lo & ApicIMASK)){
-			vno = lo & 0xFF;
-			if(0) print("%s vector %d (!imask)\n", v->name, vno);
-			n = mpintrinit(bus, aintr->intr, vno, v->irq);
-			n |= ApicPHYSICAL;		/* no-op */
-			lo &= ~(ApicRemoteIRR|ApicDELIVS);
-			if(n != lo){
-				print("mpintrenable: multiple botch irq %d, tbdf %uX, lo %8.8uX, n %8.8uX\n",
-					v->irq, tbdf, lo, n);
-				return -1;
-			}
-			v->isr = lapicisr;
-			v->eoi = lapiceoi;
-			return vno;
-		}
-
-		vno = allocvector();
-		hi = mpintrcpu()<<24;
-		lo = mpintrinit(bus, aintr->intr, vno, v->irq);
-		lo |= ApicPHYSICAL;			/* no-op */
+		ioapicrdtr(aintr->apic, aintr->intr->intin, &hi, &lo);
 		if(lo & ApicIMASK){
-			print("mpintrenable: disabled irq %d, tbdf %uX, lo %8.8uX, hi %8.8uX\n",
-				v->irq, tbdf, lo, hi);
-			return -1;
+			v->vno = allocvector();
+			v->cpu = mpintrcpu();
+			lo = mpintrinit(aintr->bus, aintr->intr, v->vno, v->irq);
+			lo |= ApicPHYSICAL;			/* no-op */
+			if(lo & ApicIMASK){
+				print("mpintrassign: disabled irq %d, tbdf %uX, lo %8.8uX, hi %8.8uX\n",
+					v->irq, v->tbdf, lo, hi);
+				break;
+			}
+		} else {
+			v->vno = lo & 0xFF;
+			v->cpu = hi >> 24;
+			lo &= ~(ApicRemoteIRR|ApicDELIVS);
+			n = mpintrinit(aintr->bus, aintr->intr, v->vno, v->irq);
+			n |= ApicPHYSICAL;			/* no-op */
+			if(lo != n){
+				print("mpintrassign: multiple botch irq %d, tbdf %uX, lo %8.8uX, n %8.8uX\n",
+					v->irq, v->tbdf, lo, n);
+				break;
+			}
 		}
-		if((apic->flags & PcmpEN) && apic->type == PcmpIOAPIC)
- 			ioapicrdtw(apic, aintr->intr->intin, hi, lo);
 
 		v->isr = lapicisr;
 		v->eoi = lapiceoi;
-		return vno;
+
+		if((aintr->apic->flags & PcmpEN) && aintr->apic->type == PcmpIOAPIC){
+			v->aux = aintr;
+			v->enable = ioapicirqenable;
+			v->disable = ioapicirqdisable;
+		}
+
+		return v->vno;
 	}
 
 	return -1;
 }
-
-enum {
-	MSICtrl = 0x02, /* message control register (16 bit) */
-	MSIAddr = 0x04, /* message address register (64 bit) */
-	MSIData32 = 0x08, /* message data register for 32 bit MSI (16 bit) */
-	MSIData64 = 0x0C, /* message data register for 64 bit MSI (16 bit) */
-};
 
 enum {
 	HTMSIMapping	= 0xA8,
@@ -476,13 +491,28 @@ htmsienable(Pcidev *pdev)
 }
 
 static int
+msiirqenable(Vctl *v, int)
+{
+	Pcidev *pci = v->aux;
+	return pcimsienable(pci, 0xFEE00000ULL | (v->cpu << 12), v->vno | (1<<14));
+}
+
+static int
+msiirqdisable(Vctl *v, int)
+{
+	Pcidev *pci = v->aux;
+	return pcimsidisable(pci);
+}
+
+static int
 msiintrenable(Vctl *v)
 {
-	int tbdf, vno, cap, cpu, ok64;
 	Pcidev *pci;
+	int tbdf;
 
 	if(getconf("*nomsi") != nil)
 		return -1;
+
 	tbdf = v->tbdf;
 	if(tbdf == BUSUNKNOWN || BUSTYPE(tbdf) != BusPCI)
 		return -1;
@@ -493,23 +523,23 @@ msiintrenable(Vctl *v)
 	}
 	if(htmsienable(pci) < 0)
 		return -1;
-	cap = pcicap(pci, PciCapMSI);
-	if(cap < 0)
+	if(pcimsidisable(pci) < 0)
 		return -1;
-	vno = allocvector();
-	cpu = mpintrcpu();
-	ok64 = (pcicfgr16(pci, cap + MSICtrl) & (1<<7)) != 0;
-	pcicfgw32(pci, cap + MSIAddr, (0xFEE << 20) | (cpu << 12));
-	if(ok64) pcicfgw32(pci, cap + MSIAddr + 4, 0);
-	pcicfgw16(pci, cap + (ok64 ? MSIData64 : MSIData32), vno | (1<<14));
-	pcicfgw16(pci, cap + MSICtrl, 1);
+
+	v->vno = allocvector();
+	v->cpu = mpintrcpu();
 	v->isr = lapicisr;
 	v->eoi = lapiceoi;
-	return vno;
+
+	v->aux = pci;
+	v->enable = msiirqenable;
+	v->disable = msiirqdisable;
+
+	return v->vno;
 }
 
 int
-mpintrenable(Vctl* v)
+mpintrassign(Vctl* v)
 {
 	int irq, tbdf, vno;
 
@@ -524,17 +554,18 @@ mpintrenable(Vctl* v)
 	 * breakpoint and page-fault).
 	 */
 	tbdf = v->tbdf;
-	if(tbdf != BUSUNKNOWN && (vno = mpintrenablex(v, tbdf)) != -1)
+	if(tbdf != BUSUNKNOWN && (vno = mpintrassignx(v, tbdf)) != -1)
 		return vno;
 
 	irq = v->irq;
 	if(irq >= IrqLINT0 && irq <= MaxIrqLAPIC){
+		v->local = 1;
 		if(irq != IrqSPURIOUS)
 			v->isr = lapiceoi;
 		return VectorPIC+irq;
 	}
 	if(irq < 0 || irq > MaxIrqPIC){
-		print("mpintrenable: irq %d out of range\n", irq);
+		print("mpintrassign: irq %d out of range\n", irq);
 		return -1;
 	}
 
@@ -550,16 +581,16 @@ mpintrenable(Vctl* v)
 	 * be compatible with ISA.
 	 */
 	if(mpeisabus != -1){
-		vno = mpintrenablex(v, MKBUS(BusEISA, 0, 0, 0));
+		vno = mpintrassignx(v, MKBUS(BusEISA, 0, 0, 0));
 		if(vno != -1)
 			return vno;
 	}
 	if(mpisabus != -1){
-		vno = mpintrenablex(v, MKBUS(BusISA, 0, 0, 0));
+		vno = mpintrassignx(v, MKBUS(BusISA, 0, 0, 0));
 		if(vno != -1)
 			return vno;
 	}
-	print("mpintrenable: out of choices eisa %d isa %d tbdf %uX irq %d\n",
+	print("mpintrassign: out of choices eisa %d isa %d tbdf %uX irq %d\n",
 		mpeisabus, mpisabus, v->tbdf, v->irq);
 	return -1;
 }

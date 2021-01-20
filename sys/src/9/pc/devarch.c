@@ -7,29 +7,8 @@
 #include "ureg.h"
 #include "../port/error.h"
 
-typedef struct IOMap IOMap;
-struct IOMap
-{
-	IOMap	*next;
-	int	reserved;
-	char	tag[13];
-	ulong	start;
-	ulong	end;
-};
-
-static struct
-{
-	Lock;
-	IOMap	*m;
-	IOMap	*free;
-	IOMap	maps[32];	/* some initial free maps */
-
-	QLock	ql;		/* lock for reading map */
-} iomap;
-
 enum {
 	Qdir = 0,
-	Qioalloc = 1,
 	Qiob,
 	Qiow,
 	Qiol,
@@ -37,11 +16,6 @@ enum {
 	Qbase,
 
 	Qmax = 32,
-};
-
-enum {
-	CR4Osfxsr = 1 << 9,
-	CR4Oxmmex = 1 << 10,
 };
 
 enum {				/* cpuid standard function codes */
@@ -61,7 +35,6 @@ static Rdwrfn *writefn[Qmax];
 
 static Dirtab archdir[Qmax] = {
 	".",		{ Qdir, 0, QTDIR },	0,	0555,
-	"ioalloc",	{ Qioalloc, 0 },	0,	0444,
 	"iob",		{ Qiob, 0 },		0,	0660,
 	"iow",		{ Qiow, 0 },		0,	0660,
 	"iol",		{ Qiol, 0 },		0,	0660,
@@ -116,12 +89,8 @@ void
 ioinit(void)
 {
 	char *excluded;
-	int i;
 
-	for(i = 0; i < nelem(iomap.maps)-1; i++)
-		iomap.maps[i].next = &iomap.maps[i+1];
-	iomap.maps[i].next = nil;
-	iomap.free = iomap.maps;
+	iomapinit(0xffff);
 
 	/*
 	 * This is necessary to make the IBM X20 boot.
@@ -153,163 +122,10 @@ ioinit(void)
 			ioalloc(io_s, io_e - io_s + 1, 0, "pre-allocated");
 		}
 	}
-
-}
-
-/*
- * Reserve a range to be ioalloced later.
- * This is in particular useful for exchangable cards, such
- * as pcmcia and cardbus cards.
- */
-int
-ioreserve(int, int size, int align, char *tag)
-{
-	IOMap *m, **l;
-	int i, port;
-
-	lock(&iomap);
-	/* find a free port above 0x400 and below 0x1000 */
-	port = 0x400;
-	for(l = &iomap.m; *l; l = &(*l)->next){
-		m = *l;
-		if (m->start < 0x400) continue;
-		i = m->start - port;
-		if(i > size)
-			break;
-		if(align > 0)
-			port = ((port+align-1)/align)*align;
-		else
-			port = m->end;
-	}
-	if(*l == nil){
-		unlock(&iomap);
-		return -1;
-	}
-	m = iomap.free;
-	if(m == nil){
-		print("ioalloc: out of maps");
-		unlock(&iomap);
-		return port;
-	}
-	iomap.free = m->next;
-	m->next = *l;
-	m->start = port;
-	m->end = port + size;
-	m->reserved = 1;
-	strncpy(m->tag, tag, sizeof(m->tag)-1);
-	m->tag[sizeof(m->tag)-1] = 0;
-	*l = m;
-
-	archdir[0].qid.vers++;
-
-	unlock(&iomap);
-	return m->start;
-}
-
-/*
- *	alloc some io port space and remember who it was
- *	alloced to.  if port < 0, find a free region.
- */
-int
-ioalloc(int port, int size, int align, char *tag)
-{
-	IOMap *m, **l;
-	int i;
-
-	lock(&iomap);
-	if(port < 0){
-		/* find a free port above 0x400 and below 0x1000 */
-		port = 0x400;
-		for(l = &iomap.m; (m = *l) != nil; l = &m->next){
-			if (m->start < 0x400) continue;
-			i = m->start - port;
-			if(i > size)
-				break;
-			if(align > 0)
-				port = ((port+align-1)/align)*align;
-			else
-				port = m->end;
-		}
-		if(m == nil){
-			unlock(&iomap);
-			return -1;
-		}
-	} else {
-		/* Only 64KB I/O space on the x86. */
-		if((port+size) > 0x10000){
-			unlock(&iomap);
-			return -1;
-		}
-		/* see if the space clashes with previously allocated ports */
-		for(l = &iomap.m; (m = *l) != nil; l = &m->next){
-			if(m->end <= port)
-				continue;
-			if(m->reserved && m->start == port && m->end >= port + size) {
-				m->reserved = 0;
-				unlock(&iomap);
-				return m->start;
-			}
-			if(m->start >= port+size)
-				break;
-			unlock(&iomap);
-			return -1;
-		}
-	}
-	m = iomap.free;
-	if(m == nil){
-		print("ioalloc: out of maps");
-		unlock(&iomap);
-		return port;
-	}
-	iomap.free = m->next;
-	m->next = *l;
-	m->start = port;
-	m->end = port + size;
-	strncpy(m->tag, tag, sizeof(m->tag)-1);
-	m->tag[sizeof(m->tag)-1] = 0;
-	*l = m;
-
-	archdir[0].qid.vers++;
-
-	unlock(&iomap);
-	return m->start;
-}
-
-void
-iofree(int port)
-{
-	IOMap *m, **l;
-
-	lock(&iomap);
-	for(l = &iomap.m; (m = *l) != nil; l = &m->next){
-		if(m->start == port){
-			*l = m->next;
-			m->next = iomap.free;
-			iomap.free = m;
-			break;
-		}
-		if(m->start > port)
-			break;
-	}
-	archdir[0].qid.vers++;
-	unlock(&iomap);
-}
-
-int
-iounused(int start, int end)
-{
-	IOMap *m;
-
-	for(m = iomap.m; m != nil; m = m->next){
-		if(start >= m->start && start < m->end
-		|| start <= m->start && end > m->start)
-			return 0;
-	}
-	return 1;
 }
 
 static void
-checkport(uint start, uint end)
+checkport(ulong start, ulong end)
 {
 	if(end < start || end > 0x10000)
 		error(Ebadarg);
@@ -357,14 +173,12 @@ archclose(Chan*)
 static long
 archread(Chan *c, void *a, long n, vlong offset)
 {
-	char buf[32], *p;
-	uint port, end;
+	ulong port, end;
+	uchar *cp;
 	ushort *sp;
 	ulong *lp;
 	vlong *vp;
-	IOMap *m;
 	Rdwrfn *fn;
-	int i;
 
 	port = offset;
 	end = port+n;
@@ -374,8 +188,8 @@ archread(Chan *c, void *a, long n, vlong offset)
 
 	case Qiob:
 		checkport(port, end);
-		for(p = a; port < end; port++)
-			*p++ = inb(port);
+		for(cp = a; port < end; port++)
+			*cp++ = inb(port);
 		return n;
 
 	case Qiow:
@@ -397,31 +211,12 @@ archread(Chan *c, void *a, long n, vlong offset)
 	case Qmsr:
 		if(n & 7)
 			error(Ebadarg);
-		if((uint)n/8 > -port)
+		if((ulong)n/8 > -port)
 			error(Ebadarg);
 		end = port+(n/8);
 		for(vp = a; port != end; port++)
 			if(rdmsr(port, vp++) < 0)
 				error(Ebadarg);
-		return n;
-
-	case Qioalloc:
-		lock(&iomap);
-		i = 0;
-		for(m = iomap.m; m != nil; m = m->next){
-			i = snprint(buf, sizeof(buf), "%8lux %8lux %-12.12s\n",
-				m->start, m->end-1, m->tag);
-			offset -= i;
-			if(offset < 0)
-				break;
-		}
-		unlock(&iomap);
-		if(offset >= 0)
-			return 0;
-		if(n > -offset)
-			n = -offset;
-		offset += i;
-		memmove(a, buf+offset, n);
 		return n;
 
 	default:
@@ -435,8 +230,8 @@ archread(Chan *c, void *a, long n, vlong offset)
 static long
 archwrite(Chan *c, void *a, long n, vlong offset)
 {
-	uint port, end;
-	char *p;
+	ulong port, end;
+	uchar *cp;
 	ushort *sp;
 	ulong *lp;
 	vlong *vp;
@@ -447,8 +242,8 @@ archwrite(Chan *c, void *a, long n, vlong offset)
 	switch((ulong)c->qid.path){
 	case Qiob:
 		checkport(port, end);
-		for(p = a; port < end; port++)
-			outb(port, *p++);
+		for(cp = a; port < end; port++)
+			outb(port, *cp++);
 		return n;
 
 	case Qiow:
@@ -470,7 +265,7 @@ archwrite(Chan *c, void *a, long n, vlong offset)
 	case Qmsr:
 		if(n & 7)
 			error(Ebadarg);
-		if((uint)n/8 > -port)
+		if((ulong)n/8 > -port)
 			error(Ebadarg);
 		end = port+(n/8);
 		for(vp = a; port != end; port++)
@@ -524,31 +319,6 @@ nop(void)
 {
 }
 
-void
-archreset(void)
-{
-	i8042reset();
-
-	/*
-	 * Often the BIOS hangs during restart if a conventional 8042
-	 * warm-boot sequence is tried. The following is Intel specific and
-	 * seems to perform a cold-boot, but at least it comes back.
-	 * And sometimes there is no keyboard...
-	 *
-	 * The reset register (0xcf9) is usually in one of the bridge
-	 * chips. The actual location and sequence could be extracted from
-	 * ACPI but why bother, this is the end of the line anyway.
-	 */
-	print("Takes a licking and keeps on ticking...\n");
-	*(ushort*)KADDR(0x472) = 0x1234;	/* BIOS warm-boot flag */
-	outb(0xcf9, 0x02);
-	outb(0xcf9, 0x06);
-
-	print("can't reset\n");
-	for(;;)
-		idle();
-}
-
 /*
  * 386 has no compare-and-swap instruction.
  * Run it with interrupts turned off instead.
@@ -579,25 +349,6 @@ int (*cmpswap)(long*, long, long) = cmpswap386;
 
 PCArch* arch;
 extern PCArch* knownarch[];
-
-PCArch archgeneric = {
-.id=		"generic",
-.ident=		0,
-.reset=		archreset,
-.serialpower=	unimplemented,
-.modempower=	unimplemented,
-
-.intrinit=	i8259init,
-.intrenable=	i8259enable,
-.intrvecno=	i8259vecno,
-.intrdisable=	i8259disable,
-.intron=	i8259on,
-.introff=	i8259off,
-
-.clockenable=	i8253enable,
-.fastclock=	i8253read,
-.timerset=	i8253timerset,
-};
 
 typedef struct X86type X86type;
 struct X86type {
@@ -710,8 +461,6 @@ static X86type x86sis[] =
 	{ -1,	-1,	23,	"unknown", },	/* total default */
 };
 
-static X86type *cputype;
-
 static void	simplecycles(uvlong*);
 void	(*cycles)(uvlong*) = simplecycles;
 void	_cycles(uvlong*);	/* in l.s */
@@ -740,24 +489,27 @@ cpuidprint(void)
  *		(if so turn it on)
  *	- whether or not it supports the page global flag
  *		(if so turn it on)
+ *	- detect PAT feature and add write-combining entry
+ *	- detect MTRR support and synchronize state with cpu0
+ *	- detect NX support and enable it for AMD64
+ *	- detect watchpoint support
+ *	- detect FPU features and enable the FPU
  */
 int
 cpuidentify(void)
 {
-	char *p;
-	int family, model, nomce;
+	int family, model;
 	X86type *t, *tab;
-	uintptr cr4;
 	ulong regs[4];
-	vlong mca, mct, pat;
+	uintptr cr4;
 
-	cpuid(Highstdfunc, regs);
+	cpuid(Highstdfunc, 0, regs);
 	memmove(m->cpuidid,   &regs[1], BY2WD);	/* bx */
 	memmove(m->cpuidid+4, &regs[3], BY2WD);	/* dx */
 	memmove(m->cpuidid+8, &regs[2], BY2WD);	/* cx */
 	m->cpuidid[12] = '\0';
 
-	cpuid(Procsig, regs);
+	cpuid(Procsig, 0, regs);
 	m->cpuidax = regs[0];
 	m->cpuidcx = regs[2];
 	m->cpuiddx = regs[3];
@@ -793,6 +545,7 @@ cpuidentify(void)
 		|| (t->family == -1))
 			break;
 
+	m->aalcycles = t->aalcycles;
 	m->cpuidtype = t->name;
 
 	/*
@@ -806,24 +559,18 @@ cpuidentify(void)
 	}
 
 	/*
-	 *  use i8253 to guess our cpu speed
-	 */
-	guesscpuhz(t->aalcycles);
-
-	/*
 	 * If machine check exception, page size extensions or page global bit
 	 * are supported enable them in CR4 and clear any other set extensions.
 	 * If machine check was enabled clear out any lingering status.
 	 */
 	if(m->cpuiddx & (Pge|Mce|Pse)){
+		vlong mca, mct;
+
 		cr4 = getcr4();
 		if(m->cpuiddx & Pse)
 			cr4 |= 0x10;		/* page size extensions */
-		if(p = getconf("*nomce"))
-			nomce = strtoul(p, 0, 0);
-		else
-			nomce = 0;
-		if((m->cpuiddx & Mce) != 0 && !nomce){
+
+		if((m->cpuiddx & Mce) != 0 && getconf("*nomce") == nil){
 			if((m->cpuiddx & Mca) != 0){
 				vlong cap;
 				int bank;
@@ -875,7 +622,6 @@ cpuidentify(void)
 			cr4 |= 0x80;		/* page global enable bit */
 			m->havepge = 1;
 		}
-
 		putcr4(cr4);
 
 		if((m->cpuiddx & (Mca|Mce)) == Mce)
@@ -884,24 +630,19 @@ cpuidentify(void)
 
 #ifdef PATWC
 	/* IA32_PAT write combining */
-	if((m->cpuiddx & Pat) != 0 && rdmsr(0x277, &pat) != -1){
-		pat &= ~(255LL<<(PATWC*8));
-		pat |= 1LL<<(PATWC*8);	/* WC */
-		wrmsr(0x277, pat);
+	if((m->cpuiddx & Pat) != 0){
+		vlong pat;
+
+		if(rdmsr(0x277, &pat) != -1){
+			pat &= ~(255LL<<(PATWC*8));
+			pat |= 1LL<<(PATWC*8);	/* WC */
+			wrmsr(0x277, pat);
+		}
 	}
 #endif
 
-	if(m->cpuiddx & Mtrr)
+	if((m->cpuiddx & Mtrr) != 0 && getconf("*nomtrr") == nil)
 		mtrrsync();
-
-	if((m->cpuiddx & (Sse|Fxsr)) == (Sse|Fxsr)){			/* have sse fp? */
-		fpsave = fpssesave;
-		fprestore = fpsserestore;
-		putcr4(getcr4() | CR4Osfxsr|CR4Oxmmex);
-	} else {
-		fpsave = fpx87save;
-		fprestore = fpx87restore;
-	}
 
 	if(strcmp(m->cpuidid, "GenuineIntel") == 0 && (m->cpuidcx & Rdrnd) != 0)
 		hwrandbuf = rdrandbuf;
@@ -913,9 +654,9 @@ cpuidentify(void)
 		m->havewatchpt8 = 1;
 
 		/* check and enable NX bit */
-		cpuid(Highextfunc, regs);
+		cpuid(Highextfunc, 0, regs);
 		if(regs[0] >= Procextfeat){
-			cpuid(Procextfeat, regs);
+			cpuid(Procextfeat, 0, regs);
 			if((regs[3] & (1<<20)) != 0){
 				vlong efer;
 
@@ -933,15 +674,16 @@ cpuidentify(void)
 		|| family == 6 && (model == 15 || model == 23 || model == 28))
 			m->havewatchpt8 = 1;
 		/* Intel SDM claims amd64 support implies 8-byte watchpoint support */
-		cpuid(Highextfunc, regs);
+		cpuid(Highextfunc, 0, regs);
 		if(regs[0] >= Procextfeat){
-			cpuid(Procextfeat, regs);
+			cpuid(Procextfeat, 0, regs);
 			if((regs[3] & 1<<29) != 0)
 				m->havewatchpt8 = 1;
 		}
 	}
 
-	cputype = t;
+	fpuinit();
+
 	return t->family;
 }
 
@@ -953,7 +695,7 @@ cputyperead(Chan*, void *a, long n, vlong offset)
 
 	mhz = (m->cpuhz+999999)/1000000;
 
-	snprint(str, sizeof(str), "%s %lud\n", cputype->name, mhz);
+	snprint(str, sizeof(str), "%s %lud\n", m->cpuidtype, mhz);
 	return readstr(offset, a, n, str);
 }
 
@@ -966,7 +708,7 @@ archctlread(Chan*, void *a, long nn, vlong offset)
 	p = buf = smalloc(READSTR);
 	ep = p + READSTR;
 	p = seprint(p, ep, "cpu %s %lud%s\n",
-		cputype->name, (ulong)(m->cpuhz+999999)/1000000,
+		m->cpuidtype, (ulong)(m->cpuhz+999999)/1000000,
 		m->havepge ? " pge" : "");
 	p = seprint(p, ep, "pge %s\n", getcr4()&0x80 ? "on" : "off");
 	p = seprint(p, ep, "coherence ");
@@ -1112,26 +854,24 @@ archinit(void)
 {
 	PCArch **p;
 
-	arch = &archgeneric;
+	arch = knownarch[0];
 	for(p = knownarch; *p != nil; p++){
 		if((*p)->ident != nil && (*p)->ident() == 0){
 			arch = *p;
 			break;
 		}
 	}
-	if(arch != &archgeneric){
+	if(arch != knownarch[0]){
 		if(arch->id == nil)
-			arch->id = archgeneric.id;
+			arch->id = knownarch[0]->id;
 		if(arch->reset == nil)
-			arch->reset = archgeneric.reset;
-		if(arch->serialpower == nil)
-			arch->serialpower = archgeneric.serialpower;
-		if(arch->modempower == nil)
-			arch->modempower = archgeneric.modempower;
+			arch->reset = knownarch[0]->reset;
 		if(arch->intrinit == nil)
-			arch->intrinit = archgeneric.intrinit;
-		if(arch->intrenable == nil)
-			arch->intrenable = archgeneric.intrenable;
+			arch->intrinit = knownarch[0]->intrinit;
+		if(arch->intrassign == nil)
+			arch->intrassign = knownarch[0]->intrassign;
+		if(arch->clockinit == nil)
+			arch->clockinit = knownarch[0]->clockinit;
 	}
 
 	/*
@@ -1298,6 +1038,33 @@ dumpmcregs(void)
 		}
 		iprint("\n");
 	}
+}
+
+static void
+nmihandler(Ureg *ureg, void*)
+{
+	iprint("cpu%d: nmi PC %#p, status %ux\n",
+		m->machno, ureg->pc, inb(0x61));
+	while(m->machno != 0)
+		;
+}
+
+void
+nmienable(void)
+{
+	int x;
+
+	trapenable(VectorNMI, nmihandler, nil, "nmi");
+
+	/*
+	 * Hack: should be locked with NVRAM access.
+	 */
+	outb(0x70, 0x80);		/* NMI latch clear */
+	outb(0x70, 0);
+
+	x = inb(0x61) & 0x07;		/* Enable NMI */
+	outb(0x61, 0x0C|x);
+	outb(0x61, x);
 }
 
 void

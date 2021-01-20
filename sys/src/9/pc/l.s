@@ -71,8 +71,7 @@ TEXT _multibootentry(SB), $0
 	STD
 	REP; MOVSB
 	MOVL	BX, multibootptr-KZERO(SB)
-	MOVL	$_startPADDR(SB), AX
-	ANDL	$~KZERO, AX
+	MOVL	$_startPADDR-KZERO(SB), AX
 	JMP*	AX
 
 /* multiboot structure pointer (physical address) */
@@ -98,8 +97,7 @@ TEXT _startPADDR(SB), $0
 	CLI					/* make sure interrupts are off */
 
 	/* set up the gdt so we have sane plan 9 style gdts. */
-	MOVL	$tgdtptr(SB), AX
-	ANDL	$~KZERO, AX
+	MOVL	$tgdtptr-KZERO(SB), AX
 	MOVL	(AX), GDTR
 	MOVW	$1, AX
 	MOVW	AX, MSW
@@ -146,21 +144,11 @@ TEXT tgdtptr(SB), $0
 	WORD	$(3*8)
 	LONG	$tgdt-KZERO(SB)
 
-TEXT m0rgdtptr(SB), $0
-	WORD	$(NGDT*8-1)
-	LONG	$(CPU0GDT-KZERO)
-
-TEXT m0gdtptr(SB), $0
-	WORD	$(NGDT*8-1)
-	LONG	$CPU0GDT
-
-TEXT m0idtptr(SB), $0
-	WORD $(256*8-1)
-	LONG $IDTADDR
+TEXT vtgdtptr(SB), $0
+	WORD	$(3*8)
+	LONG	$tgdt(SB)
 
 TEXT mode32bit(SB), $0
-	/* At this point, the GDT setup is done. */
-
 	MOVL	$((CPU0END-CPU0PDB)>>2), CX
 	MOVL	$PADDR(CPU0PDB), DI
 	XORL	AX, AX
@@ -231,6 +219,9 @@ _setpte:
  * be initialised here.
  */
 TEXT _startpg(SB), $0
+	MOVL	$vtgdtptr(SB), AX
+	MOVL	(AX), GDTR
+
 	MOVL	$0, (PDO(0))(CX)		/* undo double-map of KZERO at 0 */
 	MOVL	CX, CR3				/* load and flush the mmu */
 
@@ -529,7 +520,7 @@ TEXT _peekinst(SB), $0
  * a 386 (Ac bit can't be set). If it's not a 386 and the Id bit can't be
  * toggled then it's an older 486 of some kind.
  *
- *	cpuid(fun, regs[4]);
+ *	cpuid(fn, sublvl, regs[4]);
  */
 TEXT cpuid(SB), $0
 	MOVL	$0x240000, AX
@@ -548,6 +539,7 @@ TEXT cpuid(SB), $0
 	TESTL	$0x200000, AX			/* Id */
 	JZ	_cpu486				/* can't toggle this bit on some 486 */
 	MOVL	fn+0(FP), AX
+	MOVL	sublvl+4(FP), CX
 	CPUID
 	JMP	_cpuid
 _cpu486:
@@ -564,7 +556,7 @@ _zaprest:
 	XORL	CX, CX
 	XORL	DX, DX
 _cpuid:
-	MOVL	regs+4(FP), BP
+	MOVL	regs+8(FP), BP
 	MOVL	AX, 0(BP)
 	MOVL	BX, 4(BP)
 	MOVL	CX, 8(BP)
