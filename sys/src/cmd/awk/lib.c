@@ -644,7 +644,7 @@ double errcheck(double x, char *s)
 	if (isNaN(x)) {
 		WARNING("%s argument out of domain", s);
 		x = 1;
-	} else if (isInf(x, 1) || isInf(x, -1)) {
+	} else if (isInf(x, 0)) {
 		WARNING("%s result out of range", s);
 		x = 1;
 	}
@@ -696,7 +696,7 @@ int is_number(char *s)
 	}
 
 	r = strtod(s, &ep);
-	if (ep == s || isInf(r, 1) || isInf(r, -1) || isNaN(r))
+	if (ep == s || isInf(r, 0) || isNaN(r))
 		return 0;
 	while (*ep == ' ' || *ep == '\t' || *ep == '\n')
 		ep++;

@@ -199,6 +199,9 @@ returns the full contents of the window.
 Write appends to the window. Truncating
 clears the windows contents.
 .TP
+.B hist
+returns the history buffer contents of the window.
+.TP
 .B wctl
 may be read or written.
 When read, it returns the location of the window as four decimal
@@ -429,3 +432,9 @@ lp /dev/wsys/123/window
 .IR kbdfs (8),
 .IR event (2),
 .IR graphics (2).
+.SH HISTORY
+.SS December, 2019
+.IP \(bu 2
+Description of
+.B hist
+file.

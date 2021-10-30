@@ -40,8 +40,8 @@ union FPdbleword
 {
 	double	x;
 	struct {	/* big endian */
-		long hi;
-		long lo;
+		unsigned long hi;
+		unsigned long lo;
 	};
 };
 

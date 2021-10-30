@@ -23,11 +23,13 @@ tan(double arg)
 	double temp, e, x, xsq;
 	int flag, sign, i;
 
+	if(isInf(arg,0))
+		return NaN();
 	flag = 0;
-	sign = 0;
+	sign = 1;
 	if(arg < 0){
 		arg = -arg;
-		sign++;
+		sign = -sign;
 	}
 	arg = 2*arg/PIO2;   /* overflow? */
 	x = modf(arg, &e);
@@ -39,13 +41,13 @@ tan(double arg)
 		break;
 
 	case 2:
-		sign = !sign;
+		sign = -sign;
 		flag = 1;
 		break;
 
 	case 3:
 		x = 1 - x;
-		sign = !sign;
+		sign = -sign;
 		break;
 
 	case 0:
@@ -58,10 +60,8 @@ tan(double arg)
 
 	if(flag) {
 		if(temp == 0)
-			return NaN();
+			return Inf(-sign);
 		temp = 1/temp;
 	}
-	if(sign)
-		temp = -temp;
-	return temp;
+	return sign*temp;
 }

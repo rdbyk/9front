@@ -173,8 +173,11 @@ xdodtoa(char *s1, double f, int chr, int prec, int *decpt, int *rsign)
 		return &s1[3];
 	}
 	sign = 0;
-	if(f < 0) {
-		f = -f;
+	if(signbit(f)) {
+		if(f == 0)
+			f = -0.0;
+		else
+			f = -f;
 		sign++;
 	}
 	*rsign = sign;

@@ -1,6 +1,6 @@
 .TH NAN 2
 .SH NAME
-NaN, Inf, isNaN, isInf \- not-a-number and infinity functions
+NaN, Inf, isNaN, isInf, isSub \- not-a-number, infinity and subnormal functions
 .SH SYNOPSIS
 .B #include <u.h>
 .br
@@ -18,10 +18,13 @@ int	isNaN(double)
 .PP
 .B
 int	isInf(double, int)
+.PP
+.B
+int	isSub(double)
 .SH DESCRIPTION
 The IEEE floating point standard defines values called
-`not-a-number' and positive and negative `infinity'.
-These values can be produced by such things as overflow
+`not-a-number', positive and negative `infinity', and 'subnormal'.
+These values can be produced by such things as overflow, (gradual) underflow
 and division by zero.
 Also, the library functions sometimes return them when
 the arguments are not in the domain, or the result is
@@ -45,10 +48,17 @@ is greater than or equal to zero,
 else negative infinity.
 .I IsInf
 returns true if its first argument is infinity
-with a sign matching the second argument.
-A zero sign matches both negative and positive
-infinities.
+with the same sign as the second argument.
+.PP
+.I IsSub
+returns true if its argument is subnormal. The magnitude of a subnormal
+number is nonzero and less than the magnitude of the smallest representable
+number with full precision.
+
 .SH SOURCE
 .B /sys/src/libc/port/nan.c
 .SH "SEE ALSO"
 .IR getfcr (2)
+.SH HISTORY
+.I isSub
+appeared in May, 2020.

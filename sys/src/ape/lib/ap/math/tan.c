@@ -5,10 +5,10 @@
 	Coefficients are #4285 from Hart & Cheney. (19.74D)
  */
 
+#define _RESEARCH_SOURCE 	/* fixme: get rid of that cruft */
 #include <math.h>
 #include <errno.h>
 
-static double invpi	  = 1.27323954473516268;
 static double p0	 = -0.1306820264754825668269611177e+5;
 static double p1	  = 0.1055970901714953193602353981e+4;
 static double p2	 = -0.1550685653483266376941705728e+2;
@@ -18,19 +18,25 @@ static double q0	 = -0.1663895238947119001851464661e+5;
 static double q1	  = 0.4765751362916483698926655581e+4;
 static double q2	 = -0.1555033164031709966900124574e+3;
 
+#define PIO2 M_PI_2
+
 double
 tan(double arg)
 {
-	double sign, temp, e, x, xsq;
-	int flag, i;
+	double temp, e, x, xsq;
+	int flag, sign, i;
 
+	if(isInf(arg,0)){
+		errno = EDOM;
+		return NaN();
+	}
 	flag = 0;
 	sign = 1;
 	if(arg < 0){
 		arg = -arg;
-		sign = -1;
+		sign = -sign;
 	}
-	arg = arg*invpi;   /* overflow? */
+	arg = 2*arg/PIO2;   /* overflow? */
 	x = modf(arg, &e);
 	i = e;
 	switch(i%4) {
@@ -40,13 +46,13 @@ tan(double arg)
 		break;
 
 	case 2:
-		sign = - sign;
+		sign = -sign;
 		flag = 1;
 		break;
 
 	case 3:
 		x = 1 - x;
-		sign = - sign;
+		sign = -sign;
 		break;
 
 	case 0:
@@ -57,13 +63,9 @@ tan(double arg)
 	temp = ((((p4*xsq+p3)*xsq+p2)*xsq+p1)*xsq+p0)*x;
 	temp = temp/(((xsq+q2)*xsq+q1)*xsq+q0);
 
-	if(flag == 1) {
-		if(temp == 0) {
-			errno = EDOM;
-			if (sign > 0)
-				return HUGE_VAL;
-			return -HUGE_VAL;
-		}
+	if(flag) {
+		if(temp == 0)
+			return Inf(-sign);
 		temp = 1/temp;
 	}
 	return sign*temp;

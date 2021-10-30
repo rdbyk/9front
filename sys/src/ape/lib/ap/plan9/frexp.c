@@ -1,104 +1,127 @@
+#include <float.h>
 #include <math.h>
 #include <errno.h>
-#define _RESEARCH_SOURCE
-#include <float.h>
+
+/*
+ * this is big/little endian non-portable
+ * it gets the endian from the FPdbleword
+ * union in float.h.
+ */
 
 #define	MASK	0x7ffL
 #define	SHIFT	20
 #define	BIAS	1022L
 #define	SIG	52
 
-typedef	union
-{
-	double	d;
-	struct
-	{
-#ifdef IEEE_8087
-		long	ls;
-		long	ms;
-#else
-		long	ms;
-		long	ls;
-#endif
-	};
-} Cheat;
+typedef unsigned long ulong;
 
 double
 frexp(double d, int *ep)
 {
-	Cheat x, a;
+	FPdbleword x, a;
 
 	*ep = 0;
-	/* order matters: only isNaN can operate on NaN */
 	if(isNaN(d) || isInf(d, 0) || d == 0)
 		return d;
-	x.d = d;
-	a.d = fabs(d);
-	if((a.ms >> SHIFT) == 0){	/* normalize subnormal numbers */
-		x.d = (double)(1ULL<<SIG) * d;
+	x.x = d;
+	a.x = fabs(d);
+	if((a.hi >> SHIFT) == 0){	/* normalize subnormal numbers */
+		x.x = (double)(1ULL<<SIG) * d;
 		*ep = -SIG;
 	}
-	*ep = ((x.ms >> SHIFT) & MASK) - BIAS;
-	x.ms &= ~(MASK << SHIFT);
-	x.ms |= BIAS << SHIFT;
-	return x.d;
+	*ep += ((x.hi >> SHIFT) & MASK) - BIAS;
+	x.hi &= ~(MASK << SHIFT);
+	x.hi |= BIAS << SHIFT;
+	return x.x;
 }
 
 double
-ldexp(double d, int e)
+ldexp(double d, int deltae)
 {
-	Cheat x;
+	int e, bits;
+	FPdbleword x;
+	ulong z;
 
-	if(d == 0)
-		return 0;
-	x.d = d;
-	e += (x.ms >> SHIFT) & MASK;
-	if(e <= 0)
-		return 0;
-	if(e >= MASK){
-		errno = ERANGE;
-		if(d < 0)
-			return -HUGE_VAL;
-		return HUGE_VAL;
+	if(isNaN(d) || d == 0)
+		return d;
+	x.x = d;
+	e = (x.hi >> SHIFT) & MASK;
+	if(deltae >= 0 || e+deltae >= 1){	/* no underflow */
+		e += deltae;
+		if(e >= MASK){		/* overflow */
+			errno = ERANGE;
+			if(d < 0)
+				return Inf(-1);
+			return Inf(1);
+		}
+	}else{	/* underflow gracefully */
+		deltae = -deltae;
+		/* need to shift d right deltae */
+		if(e > 1){		/* shift e-1 by exponent manipulation */
+			deltae -= e-1;
+			e = 1;
+		}
+		if(deltae > 0 && e==1){	/* shift 1 by switch from 1.fff to 0.1ff */
+			deltae--;
+			e = 0;
+			x.lo >>= 1;
+			x.lo |= (x.hi&1)<<31;
+			z = x.hi & ((1<<SHIFT)-1);
+			x.hi &= ~((1<<SHIFT)-1);
+			x.hi |= (1<<(SHIFT-1)) | (z>>1);
+		}
+		while(deltae > 0){		/* shift bits down */
+			bits = deltae;
+			if(bits > SHIFT)
+				bits = SHIFT;
+			x.lo >>= bits;
+			x.lo |= (x.hi&((1<<bits)-1)) << (32-bits);
+			z = x.hi & ((1<<SHIFT)-1);
+			x.hi &= ~((1<<SHIFT)-1);
+			x.hi |= z>>bits;
+			deltae -= bits;
+		}
 	}
-	x.ms &= ~(MASK << SHIFT);
-	x.ms |= (long)e << SHIFT;
-	return x.d;
+	x.hi &= ~(MASK << SHIFT);
+	x.hi |= (long)e << SHIFT;
+	return x.x;
 }
 
 double
 modf(double d, double *ip)
 {
-	double f;
-	Cheat x;
+	FPdbleword x;
 	int e;
 
-	x.d = d;
-	e = (x.ms >> SHIFT) & MASK;
+	x.x = d;
+	e = (x.hi >> SHIFT) & MASK;
 	if(e == MASK){
 		*ip = d;
-		if(x.ls != 0 || (x.ms & 0xfffffL) != 0)	/* NaN */
+		if(x.lo != 0 || (x.hi & 0xfffffL) != 0)	/* NaN */
 			return d;
 		/* ±Inf */
-		x.ms &= 0x80000000L;
-		return x.d;
+		x.hi &= 0x80000000L;
+		return x.x;
 	}
 	if(d < 1) {
 		if(d < 0) {
-			f = modf(-d, ip);
+			x.x = modf(-d, ip);
 			*ip = -*ip;
-			return -f;
+			return -x.x;
+		} else if (d == 0) {
+			*ip = d;
+			return d;
 		}
 		*ip = 0;
 		return d;
 	}
 	e -= BIAS;
 	if(e <= SHIFT+1) {
-		x.ms &= ~(0x1fffffL >> e);
-		x.ls = 0;
+		x.hi &= ~(0x1fffffL >> e);
+		x.lo = 0;
 	} else
 	if(e <= SHIFT+33)
-		x.ls &= ~(0x7fffffffL >> (e-SHIFT-2));
-	*ip = x.d;
-	return d - x.d;
+		x.lo &= ~(0x7fffffffL >> (e-SHIFT-2));
+	*ip = x.x;
+	return d - x.x;
 }

@@ -77,8 +77,11 @@ xdtoa(Fmt *fmt, char *s2, double f)
 		return;
 	}
 	sign = 0;
-	if(f < 0) {
-		f = -f;
+	if(signbit(f)) {
+		if(f == 0)
+			f = -0.0;
+		else
+			f = -f;
 		sign++;
 	}
 	ucase = 0;

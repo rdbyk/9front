@@ -18,11 +18,14 @@ OFILES=\
 	jn.$O\
 	log.$O\
 	pow.$O\
+	signbit.$O\
 	sin.$O\
 	sinh.$O\
+	sqrt.$O\
 	tan.$O\
 	tanh.$O\
 
 </sys/src/cmd/mksyslib
 
 CFLAGS=$CFLAGS -c -D_POSIX_SOURCE
+

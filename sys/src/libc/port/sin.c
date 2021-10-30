@@ -32,6 +32,8 @@ sinus(double arg, int quad)
 	}
 	x *= 1/PIO2;	/* underflow? */
 	if(x > 32764) {
+		if(isInf(x, 0))
+			return NaN();
 		y = modf(x, &e);
 		e += quad;
 		modf(0.25*e, &f);

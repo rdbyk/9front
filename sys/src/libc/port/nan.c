@@ -23,7 +23,7 @@ isNaN(double d)
 	a.x = d;
 	if((a.hi & NANMASK) != NANEXP)
 		return 0;
-	return !isInf(d, 0);
+	return a.lo || (a.hi << 12);
 }
 
 double
@@ -51,4 +51,13 @@ isInf(double d, int sign)
 	if(a.hi == (NANEXP|NANSIGN))
 		return sign <= 0;
 	return 0;
+}
+
+int
+isSub(double d)
+{
+	FPdbleword a;
+
+	a.x = d;
+	return (a.hi & NANMASK) == 0 && (a.lo || (a.hi << 12));
 }

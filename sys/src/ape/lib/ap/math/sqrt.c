@@ -16,13 +16,14 @@ sqrt(double arg)
 	double x, temp;
 	int exp, i;
 
+	if(arg <= 0){
+		if(arg == 0)
+			return arg;
+		errno = EDOM;
+		return NaN();
+	}
 	if(isInf(arg, 1))
 		return arg;
-	if(arg <= 0) {
-		if(arg < 0)
-			errno = EDOM;
-		return 0;
-	}
 	x = frexp(arg, &exp);
 	while(x < 0.5) {
 		x *= 2;

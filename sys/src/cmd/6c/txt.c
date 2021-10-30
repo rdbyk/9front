@@ -608,15 +608,34 @@ gmove(Node *f, Node *t)
 	if(debug['M'])
 		print("gop: %O %O[%s],%O[%s]\n", OAS,
 			f->op, tnames[ft], t->op, tnames[tt]);
-	if(typefd[ft] && f->op == OCONST) {
+	if(f->op == OCONST) {
 		/* TO DO: pick up special constants, possibly preloaded */
-		if(f->fconst == 0.0){
-			regalloc(&nod, t, t);
-			gins(AXORPD, &nod, &nod);
-			gmove(&nod, t);
-			regfree(&nod);
-			return;
-		}
+		if(typefd[ft]){
+			if(f->fconst == 0.0) {
+				FPdbleword fw;
+				fw.x = f->fconst;
+				if(fw.hi == 0) {			/* +0.0 */
+					regalloc(&nod, t, t);
+					gins(AXORPD, &nod, &nod);
+					gmove(&nod, t);
+					regfree(&nod);
+					return;
+				}
+			}
+		}else
+			switch(vconst(f)){
+			case 0:
+				regalloc(&nod, t, t);
+				if(t64)
+					gins(AXORQ, &nod, &nod);
+				else
+					gins(AXORL, &nod, &nod);
+				gmove(&nod, t);
+				regfree(&nod);
+				return;
+			default:
+				break;
+			}
 	}
 /*
  * load
@@ -1192,8 +1211,12 @@ gins(int a, Node *f, Node *t)
 void
 gopcode(int o, Type *ty, Node *f, Node *t)
 {
-	int a, et;
+	int a, et, true;
+	Prog *p1, *p2;
+	Node nod;
 
+	true = o & BTRUE;
+	o &= ~BTRUE;
 	et = TLONG;
 	if(ty != T)
 		et = ty->etype;
@@ -1227,10 +1250,25 @@ gopcode(int o, Type *ty, Node *f, Node *t)
 			a = ANEGW;
 		if(et == TVLONG || et == TUVLONG || et == TIND)
 			a = ANEGQ;
+		if(typefd[et]){
+			regalloc(&nod, t, Z);
+			/* fixme: do not generate but load "-0.0" constant? how? */
+			gins(APCMPEQW, &nod, &nod);
+			if(et == TFLOAT) {
+				gins(APSLLL, nodconst(31), &nod);
+				gins(AXORPS, &nod, t);
+			}
+			if(et == TDOUBLE) {
+				gins(APSLLQ, nodconst(63), &nod);
+				gins(AXORPD, &nod, t);
+			}
+			regfree(&nod);
+			return;
+		}
 		break;
 
 	case OADDR:
-		a = ALEAQ;
+		a = ALEAQ; 
 		break;
 
 	case OASADD:
@@ -1419,7 +1457,49 @@ gopcode(int o, Type *ty, Node *f, Node *t)
 		case OHS:	a = AJCC; break;
 		case OHI:	a = AJHI; break;
 		}
+		if(typefd[et])				/* Take care of NaNs */
+			switch(o) {
+			case OEQ:				/* (NaN != x) == 1; !(NaN == x) == 1 */
+				goto nantrue;
+			case ONE: 				/* (NaN == x) == 0; !(NaN != x) == 0 */
+				a = AJEQ;
+				goto nanfalse;
+			case OLO: 				/* !(NaN > x) == 1 */
+			case OLS: 				/* !(NaN >= x) == 1 */
+				if(!true)
+					goto nantrue;
+				break;
+			case OHS:				/* (NaN > x) == 0 */
+				if(true) {
+					a = AJCS;
+					goto nanfalse;
+				}
+				break;
+			case OHI: 				/* (NaN >= x) == 0 */
+				if(true) {
+					a = AJLS;
+					goto nanfalse;
+				}
+				break;
+			default:
+				break;
+			}
 		gins(a, Z, Z);
+		return;
+nantrue:
+		gins(AJPS, Z, Z);
+		p1 = p;
+		gins(a, Z, Z);
+		patch(p1, pc);
+		return;
+nanfalse:
+		gins(AJPS, Z, Z);
+		p1 = p;
+		gins(a, Z, Z);
+		p2 = p;
+		patch(p1, pc);
+		gins(AJMP, Z, Z);
+		patch(p2, pc);
 		return;
 	}
 	if(a == AGOK)

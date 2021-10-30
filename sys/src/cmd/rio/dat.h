@@ -14,6 +14,7 @@ enum
 	Qscreen,
 	Qsnarf,
 	Qtext,
+	Qhist,
 	Qwctl,
 	Qwindow,
 	Qwsys,		/* directory of window directories */
@@ -24,6 +25,7 @@ enum
 
 #define	STACK	8192
 #define	MAXSNARF	100*1024
+#define MAXHISTLINES	64
 
 typedef	struct	Consreadmesg Consreadmesg;
 typedef	struct	Conswritemesg Conswritemesg;
@@ -39,6 +41,7 @@ typedef	struct	Ref Ref;
 typedef	struct	Timer Timer;
 typedef	struct	Wctlmesg Wctlmesg;
 typedef	struct	Window Window;
+typedef struct	History History;
 typedef	struct	Xfid Xfid;
 
 enum
@@ -117,7 +120,20 @@ struct Mouseinfo
 	ulong	lastcounter;	/* serial no. of last mouse event sent to client */
 	int	lastb;	/* last button state we received */
 	uchar	qfull;	/* filled the queue; no more recording until client comes back */	
-};	
+};
+
+struct History
+{
+	Rune	**line;	/* array of history entries (lines) */
+	int 	first;	/* array index of oldest (first) entry */
+	int 	last;	/* array index of last entry */
+	int		size;	/* current number of entries */
+	int		pos;	/* navigation position (0..size),
+					   pos==size for current edit line */
+	Rune	*edit;	/* current edit line, to be restored for pos==size */
+	Rune	*buf;	/* buffer for partially read lines */
+	int     buflen;	/* buffer length */
+};
 
 struct Window
 {
@@ -141,10 +157,10 @@ struct Window
 	Rune			*r;
 	uint			nraw;
 	Rune			*raw;
-	uint			org;
-	uint			q0;
-	uint			q1;
-	uint			qh;
+	uint			org;    /* first visible char in window */
+	uint			q0;     /* cursor or start of selection */
+	uint			q1;     /* end of selection */
+	uint			qh;     /* start of line to be sent to reader of cons file */
 	int			id;
 	char			name[32];
 	uint			namecount;
@@ -160,6 +176,7 @@ struct Window
 	int			topped;
 	int			notefd;
 	uchar		scrolling;
+	History		history;
 	Cursor		cursor;
 	Cursor		*cursorp;
 	uchar		holding;
@@ -183,6 +200,7 @@ Window*	wtop(Point);
 void		wtopme(Window*);
 void		wbottomme(Window*);
 char*	wcontents(Window*, int*);
+char*	whist(Window*, int*);
 int		wclose(Window*);
 uint		wbacknl(Window*, uint, uint);
 void		wcurrent(Window*);

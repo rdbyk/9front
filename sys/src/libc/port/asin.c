@@ -19,8 +19,6 @@ asin(double arg)
 		arg = -arg;
 		sign++;
 	}
-	if(arg > 1)
-		return NaN();
 	temp = sqrt(1 - arg*arg);
 	if(arg > 0.7)
 		temp = PIO2 - atan(temp/arg);
@@ -34,7 +32,5 @@ asin(double arg)
 double
 acos(double arg)
 {
-	if(arg > 1 || arg < -1)
-		return NaN();
 	return PIO2 - asin(arg);
 }

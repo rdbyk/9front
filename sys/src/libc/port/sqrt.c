@@ -15,9 +15,9 @@ sqrt(double arg)
 	int exp, i;
 
 	if(arg <= 0) {
-		if(arg < 0)
-			return NaN();
-		return 0;
+		if(arg == 0)
+			return arg;
+		return NaN();
 	}
 	if(isInf(arg, 1))
 		return arg;

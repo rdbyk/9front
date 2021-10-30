@@ -385,9 +385,16 @@ the selected text; for example, typing a BS with a word selected
 places the word in the snarf buffer, removes it from the screen,
 and erases the character before the word.
 .PP
+Typing the enter key moves the cursor to the end of the output text and inserts
+a newline character there.
+.PP
+.PP
 An ACK character (control-F) or Insert character triggers file name completion
 for the preceding string (see
 .IR complete (2)).
+.PP
+Typing shift-up- or shift-down-arrow retrieves a previously typed text line from
+the history buffer, which replaces the current (edit) line.
 .PP
 Typing a left or right arrow moves the cursor one character in that direction.
 Typing an SOH character (control-A) moves the cursor to the beginning of the
@@ -543,3 +550,10 @@ of a program to the standard input of the new window.
 In some cases,
 .IR plumb (1)
 can be used to work around this limitation.
+.SH HISTORY
+.SS December, 2019
+.IP \(bu 2
+Typing the enter key in a \fIrio\fR text window will not split the current (edit) line any more.
+.IP \(bu 2
+Typing shift-up- or shift-down-arrow provides access to a newly implemented history buffer.
+

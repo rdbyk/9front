@@ -17,7 +17,6 @@ frexp(double d, int *ep)
 	FPdbleword x, a;
 
 	*ep = 0;
-	/* order matters: only isNaN can operate on NaN */
 	if(isNaN(d) || isInf(d, 0) || d == 0)
 		return d;
 	x.x = d;
@@ -39,8 +38,8 @@ ldexp(double d, int deltae)
 	FPdbleword x;
 	ulong z;
 
-	if(d == 0)
-		return 0;
+	if(isNaN(d) || d == 0)
+		return d;
 	x.x = d;
 	e = (x.hi >> SHIFT) & MASK;
 	if(deltae >= 0 || e+deltae >= 1){	/* no underflow */
@@ -104,6 +103,9 @@ modf(double d, double *ip)
 			x.x = modf(-d, ip);
 			*ip = -*ip;
 			return -x.x;
+		} else if (d == 0) {
+			*ip = d;
+			return d;
 		}
 		*ip = 0;
 		return d;

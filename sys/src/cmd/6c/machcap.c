@@ -19,8 +19,10 @@ machcap(Node *n)
 		}
 		break;
 
-	case OCOM:
 	case ONEG:
+		return 1;
+
+	case OCOM:
 	case OADD:
 	case OAND:
 	case OOR:

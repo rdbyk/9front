@@ -51,6 +51,8 @@ enum {
 	Kenq=	0x05,
 	Kack=	0x06,
 	Kbs=	0x08,
+	Kso=    0x0e,	/* ctl-N (shift out) */
+	Ksi=	0x0f,	/* ctl-O (shift in) */
 	Knack=	0x15,
 	Ketb=	0x17,
 	Kdel=	0x7f,

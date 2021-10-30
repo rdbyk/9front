@@ -142,8 +142,7 @@ Biobuf*	foutput;	/* y.output file */
 
 	/* communication variables between various I/O routines */
 
-char*	infile;			/* input file name */
-char	inpath[1024];		/* input full path */
+char*	inpath;			/* input full path */
 int	numbval;		/* value of an input number */
 char	tokname[NAMESIZE+UTFmax+1];	/* input token name, slop for runes and 0 */
 
@@ -624,7 +623,7 @@ error(char *s, ...)
 
 	nerrors++;
 	va_start(ap, s);
-	fprint(2, "%s:%d: fatal error: ", infile, lineno);
+	fprint(2, "%s:%d: fatal error: ", inpath, lineno);
 	vfprint(2, s, ap);
 	fprint(2, "\n");
 	va_end(ap);
@@ -1185,7 +1184,7 @@ setup(int argc, char *argv[])
 	long c, t;
 	int i, j, lev, ty, ytab, *p;
 	int vflag, dflag, stem;
-	char actnm[8], *stemc;
+	char actnm[8], *stemc, *s, dirbuf[128];
 
 	ytab = 0;
 	vflag = 0;
@@ -1230,13 +1229,19 @@ setup(int argc, char *argv[])
 	Blethal(faction, nil);
 	if(argc < 1)
 		error("no input file");
-
-	infile = argv[0];
-	finput = Bopen(infile, OREAD);
+	inpath = argv[0];
+	if(inpath[0] != '/' && getwd(dirbuf, sizeof dirbuf)!=nil){
+		i = strlen(inpath)+1+strlen(dirbuf)+1+10;
+		s = malloc(i);
+		if(s != nil){
+			snprint(s, i, "%s/%s", dirbuf, inpath);
+			cleanname(s);
+			inpath = s;
+		}
+	}
+	finput = Bopen(inpath, OREAD);
 	if(finput == 0)
 		error("cannot open '%s'", argv[0]);
-	if(fd2path(Bfildes(finput), inpath, sizeof(inpath)) == -1)
-		error("cannot get path for %s", infile);
 	Blethal(finput, nil);
 	cnamp = cnames;
 

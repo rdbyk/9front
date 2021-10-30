@@ -39,11 +39,13 @@ extern int isNaN(double);
 extern double Inf(int);
 extern int isInf(double, int);
 extern double fmin(double, double);
+extern int signbit(double);
+extern double copysign(double, double);
 
 #ifdef _RESEARCH_SOURCE
 /* does >> treat left operand as unsigned ? */
 #define Unsigned_Shifts 1
-#define	M_E		2.7182818284590452354	/* e */
+#define	M_E		    2.7182818284590452354	/* e */
 #define	M_LOG2E		1.4426950408889634074	/* log 2e */
 #define	M_LOG10E	0.43429448190325182765	/* log 10e */
 #define	M_LN2		0.69314718055994530942	/* log e2 */

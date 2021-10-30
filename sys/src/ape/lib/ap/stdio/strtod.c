@@ -727,5 +727,12 @@ strtod(CONST char *s00, char **se)
  ret:
 	if (se)
 		*se = (char *)s;
+	/* 
+	 * "-x" is evaluted as "0-x" on some platforms,
+	 * thus we handle the "0" case separately here
+	 * in order to avoid loosing the sign of "-0".
+	 */ 
+	if(rv.d == 0)
+		return sign ? -0.0 : 0.0;
 	return sign ? -rv.d : rv.d;
 	}

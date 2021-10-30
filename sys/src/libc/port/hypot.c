@@ -25,6 +25,10 @@ hypot(double p, double q)
 	}
 	if(p == 0)
 		return 0;
+	if(isInf(p,1) || isInf(q,1))
+		return Inf(1);
+	if(isNaN(p + q))
+		return p + q;
 	pfac = p;
 	r = q = q/p;
 	p = 1;

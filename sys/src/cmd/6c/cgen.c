@@ -1231,10 +1231,10 @@ boolgen(Node *n, int true, Node *nn)
 			if(typefd[n->type->etype]) {
 				regalloc(&nod1, n, Z);
 				gmove(nodfconst(0.0), &nod1);	/* TO DO: FREGZERO */
-				gopcode(o, n->type, n, &nod1);
+				gopcode(true ? o | BTRUE : o, n->type, n, &nod1);
 				regfree(&nod1);
 			} else
-				gopcode(o, n->type, n, nodconst(0));
+				gopcode(true ? o | BTRUE : o, n->type, n, nodconst(0));
 			goto com;
 		}
 		regalloc(&nod, n, nn);
@@ -1242,7 +1242,7 @@ boolgen(Node *n, int true, Node *nn)
 		if(typefd[n->type->etype]) {
 			regalloc(&nod1, n, Z);
 			gmove(nodfconst(0.0), &nod1);	/* TO DO: FREGZERO */
-			gopcode(o, n->type, &nod, &nod1);
+			gopcode(true ? o | BTRUE : o, n->type, &nod, &nod1);
 			regfree(&nod1);
 		} else
 			gopcode(o, n->type, &nod, nodconst(0));
@@ -1344,10 +1344,10 @@ boolgen(Node *n, int true, Node *nn)
 			if(r->addable < INDEXED || r->addable == 13) {
 				regalloc(&nod, r, nn);
 				cgen(r, &nod);
-				gopcode(o, l->type, &nod, l);
+				gopcode(true ? o | BTRUE : o, l->type, &nod, l);
 				regfree(&nod);
 			} else
-				gopcode(o, l->type, r, l);
+				gopcode(true ? o | BTRUE : o, l->type, r, l);
 			goto com;
 		}
 		if(typefd[l->type->etype])
@@ -1358,10 +1358,10 @@ boolgen(Node *n, int true, Node *nn)
 			if(r->addable < INDEXED || hardconst(r) || typefd[l->type->etype]) {
 				regalloc(&nod1, r, Z);
 				cgen(r, &nod1);
-				gopcode(o, l->type, &nod, &nod1);
+				gopcode(true ? o | BTRUE : o, l->type, &nod, &nod1);
 				regfree(&nod1);
 			} else
-				gopcode(o, l->type, &nod, r);
+				gopcode(true ? o | BTRUE : o, l->type, &nod, r);
 			regfree(&nod);
 			goto com;
 		}
@@ -1371,12 +1371,12 @@ boolgen(Node *n, int true, Node *nn)
 			regalloc(&nod1, l, Z);
 			cgen(l, &nod1);
 			if(typechl[l->type->etype] && ewidth[l->type->etype] <= ewidth[TINT])
-				gopcode(o, types[TINT], &nod1, &nod);
+				gopcode(true ? o | BTRUE : o, types[TINT], &nod1, &nod);
 			else
-				gopcode(o, l->type, &nod1, &nod);
+				gopcode(true ? o | BTRUE : o, l->type, &nod1, &nod);
 			regfree(&nod1);
 		} else
-			gopcode(o, l->type, l, &nod);
+			gopcode(true ? o | BTRUE : o, l->type, l, &nod);
 		regfree(&nod);
 
 	com:

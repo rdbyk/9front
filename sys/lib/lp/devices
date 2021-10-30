@@ -70,3 +70,7 @@ vogon		printer-room alice vogon - post+600dpi generic lpdspool lpd - -
 # HP DeskJet and Canon BJC-240
 hpdeskjet	- - /dev/lpt1data - gs!cdj670+nohead generic nospool - - - -
 canonbjc240l	- - /dev/lpt1data - gs!bjc600+nohead generic nospool - - - -
+
+# KYBDR printers
+hl4150cdn office 192.168.2.98 192.168.2.98 - post+600dpi+color+duplex generic lpdspool lpd - -
+
