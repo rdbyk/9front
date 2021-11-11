@@ -882,9 +882,14 @@ wkeyctl(Window *w, Rune r)
 	/* navigation keys work only when mouse and kbd is not open */
 	if(!w->mouseopen)
 		switch(r){
-		case Kdown:
-			n = shiftdown ? 1 : w->maxlines/3;
+		case Ksi: /* control-N */
+			n = 1;
 			goto case_Down;
+		case Kdown:
+			if(!shiftdown){
+				n = w->maxlines/3;
+				goto case_Down;
+			} else break;
 		case Kscrollonedown:
 			n = mousescrollsize(w->maxlines);
 			if(n <= 0)
@@ -896,9 +901,14 @@ wkeyctl(Window *w, Rune r)
 			q0 = w->org+frcharofpt(w, Pt(w->Frame.r.min.x, w->Frame.r.min.y+n*w->font->height));
 			wsetorigin(w, q0, TRUE);
 			return;
-		case Kup:
-			n = shiftdown ? 1 : w->maxlines/3;
+		case Kso: /* control-O */
+			n = 1;
 			goto case_Up;
+		case Kup:
+			if(!shiftdown){
+				n = w->maxlines/3;
+				goto case_Up;
+			} else break;
 		case Kscrolloneup:
 			n = mousescrollsize(w->maxlines);
 			if(n <= 0)
@@ -972,9 +982,19 @@ wkeyctl(Window *w, Rune r)
 		wcut(w);
 	}
 	switch(r){
+	case Kup:
+		if(!w->holding)
+			histinsert(w, w->history.pos - 1);
+		return;
+	case Kdown:
+		if(!w->holding)
+			histinsert(w, w->history.pos + 1);
+		return;
 	case Kdel:	/* send interrupt */
 		w->qh = w->nr;
+		wsetselect(w, w->nr, w->nr);
 		wshow(w, w->qh);
+		histreset(w);
 		if(w->notefd < 0)
 			return;
 		notefd = emalloc(sizeof(int));
@@ -1298,6 +1318,7 @@ wmk(Image *i, Mousectl *mc, Channel *ck, Channel *cctl, int scrolling)
 	draw(w->i, r, cols[BACK], nil, w->entire.min);
 	wborder(w, Selborder);
 	wscrdraw(w);
+	histinit(w);
 	incref(w);	/* ref will be removed after mounting; avoids delete before ready to be deleted */
 	return w;
 }
@@ -1472,6 +1493,7 @@ wctlmesg(Window *w, int m, Rectangle r, void *p)
 		free(w->r);
 		free(w->dir);
 		free(w->label);
+		histfree(w);
 		free(w);
 		break;
 	}
@@ -1507,7 +1529,7 @@ winctl(void *arg)
 {
 	Rune *rp, *up, r;
 	uint qh, q0;
-	int nr, nb, c, wid, i, npart, initial, lastb;
+	int nr, nb, c, wid, i, npart, initial, lastb, qh0;
 	char *s, *t, part[3];
 	Window *w;
 	Mousestate *mp, m;
@@ -1717,6 +1739,7 @@ winctl(void *arg)
 			recv(crm.c1, &pair);
 			t = pair.s;
 			nb = pair.ns;
+			qh0 = w->qh; /* saved for histadd.c cf. below */
 			i = npart;
 			npart = 0;
 			if(i)
@@ -1743,6 +1766,8 @@ winctl(void *arg)
 				memmove(part, t+nb, npart);
 				i = nb;
 			}
+			if(!w->rawing)
+				histadd(w, qh0, w->qh);
 			pair.s = t;
 			pair.ns = i;
 			send(crm.c2, &pair);
