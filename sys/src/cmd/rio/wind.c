@@ -155,7 +155,7 @@ enum
 	MinWater	= 20000,	/* room to leave available when reallocating */
 };
 
-static uint
+uint
 winsert(Window *w, Rune *r, int n, uint q0)
 {
 	uint m;
@@ -241,7 +241,7 @@ wfill(Window *w)
 	}
 }
 
-static void
+void
 wsetselect(Window *w, uint q0, uint q1)
 {
 	int p0, p1;
@@ -558,7 +558,7 @@ showcandidates(Window *w, Completion *c)
 	free(rp);
 }
 
-static int
+int
 wbswidth(Window *w, Rune c)
 {
 	uint q, eq, stop;
@@ -651,6 +651,26 @@ wbacknl(Window *w, uint p, uint n)
 }
 
 char*
+whist(Window *w, int *ip)
+{
+	History *h = &w->history;
+	int i, len;
+	char *res, *p;
+
+	len = 0;
+	for(i = 0; i < h->size; ++i)
+		len += runestrlen(histentry(w, i));
+
+	res = p = emalloc(len * UTFmax + 2*h->size);
+
+	for(i = 0; i < h->size; ++i)
+		p += sprint(p, "%S\n", histentry(w, i));
+
+	*ip = p - res;
+	return res;
+}
+
+char*
 wcontents(Window *w, int *ip)
 {
 	return runetobyte(w->r, w->nr, ip);
@@ -709,7 +729,7 @@ wsend(Window *w)
 	wshow(w, w->nr);
 }
 
-static void
+void
 wdelete(Window *w, uint q0, uint q1)
 {
 	uint n, p0, p1;
